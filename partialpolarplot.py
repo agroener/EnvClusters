@@ -84,6 +84,7 @@ def fractional_polar_axes(f, thlim=(0, 180), rlim=(0, 1), step=(30, 0.2),
 
 
 if __name__ == '__main__':
+    '''
     f1 = plt.figure()
     a1 = fractional_polar_axes(f1)
     # example spiral plot:
@@ -93,7 +94,8 @@ if __name__ == '__main__':
     r = np.arange(0, 1+rstep, rstep)
     a1.plot(th, r, 'b')
     f1.show()
-'''
+    '''
+
     f2 = plt.figure()
     a2 = fractional_polar_axes(f2, thlim=(36, 135), rlim=(2, 7), step=(15, 1))
     # example spiral plot:
@@ -104,6 +106,7 @@ if __name__ == '__main__':
     a2.plot(th, r, 'r')
     f2.show()
 
+    '''
     f3 = plt.figure()
     a3 = fractional_polar_axes(f3, thlim=(36, 135), rlim=(2, 7), step=(15, 1),
                                thlabel=None, rlabel=None, ticklabels=False)
@@ -114,8 +117,8 @@ if __name__ == '__main__':
     r = np.arange(2, 7+rstep, rstep)
     a3.plot(th, r, 'r')
     f3.show()
-''' 
-'''
+    '''
+    '''
     # using a -ve value in rlim crashes Python (segmentation fault):
     f4 = plt.figure()
     a4 = fractional_polar_axes(f4, rlim=(-1, 0))
@@ -126,4 +129,5 @@ if __name__ == '__main__':
     r = np.arange(-1, 0+rstep, rstep)
     a4.plot(th, r, 'b')
     f4.show()
-'''
+    '''
+    
