@@ -2,6 +2,7 @@ from xlrd import open_workbook
 import numpy as np
 import matplotlib.pyplot as plt
 from astropy.io.ascii import read
+import socket
 
 # Temporary imports
 import ipdb
@@ -101,7 +102,12 @@ def clusters_within_region(ra_min,ra_max,dec_min,dec_max,plotregion=False):
     return cl_list,ra_list,dec_list,z_list
         
 def startup_sdss():
-    fh = read("/Users/groenera/Desktop/Dropbox/Private/Research/DataFiles/ClusterEnvironment/")
+    if socket.gethostname() == 'Umbriel':
+        fh = read("/home/groenera/Desktop/Dropbox/Private/Research/DataFiles/ClusterEnvironment/")
+    else:
+        fh = read("/Users/groenera/Desktop/Dropbox/Private/Research/DataFiles/ClusterEnvironment/")
+        
+    ipdb.set_trace()
     return
 
 # /--- Preliminary Stuff ---/ #
