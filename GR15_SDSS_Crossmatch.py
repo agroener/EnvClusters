@@ -1,6 +1,7 @@
 from xlrd import open_workbook
 import numpy as np
 import matplotlib.pyplot as plt
+from astropy.io.ascii import read
 
 # Temporary imports
 import ipdb
@@ -99,6 +100,9 @@ def clusters_within_region(ra_min,ra_max,dec_min,dec_max,plotregion=False):
         plt.show()
     return cl_list,ra_list,dec_list,z_list
         
+def startup_sdss():
+    fh = read("/Users/groenera/Desktop/Dropbox/Private/Research/DataFiles/ClusterEnvironment/")
+    return
 
 # /--- Preliminary Stuff ---/ #
 clusters,redshift,methods,c200,c200_plus,c200_minus,m200,m200_plus,m200_minus,cvir,cvir_plus,cvir_minus,mvir,mvir_plus,mvir_minus,short_refs,orig_convention,cosmology,ra,dec = startup()        
