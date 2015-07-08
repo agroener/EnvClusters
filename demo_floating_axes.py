@@ -1,5 +1,5 @@
 from matplotlib.transforms import Affine2D
-
+import ipdb
 import mpl_toolkits.axisartist.floating_axes as floating_axes
 
 import numpy as np
@@ -69,7 +69,7 @@ def setup_axes2(fig, rect):
     return ax1, aux_ax
 
 
-def setup_axes3(fig, rect):
+def setup_axes3(fig, rect, ra0, ra1, cz1, cz0=0):
     """
     Sometimes, things like axis_direction need to be adjusted.
     """
@@ -82,13 +82,13 @@ def setup_axes3(fig, rect):
 
     tr = tr_rotate + tr_scale + PolarAxes.PolarTransform()
 
-    grid_locator1 = angle_helper.LocatorHMS(4)
+    grid_locator1 = angle_helper.LocatorHMS(6)
     tick_formatter1 = angle_helper.FormatterHMS()
 
-    grid_locator2 = MaxNLocator(3)
+    grid_locator2 = MaxNLocator(5)
 
-    ra0, ra1 = 8.*15, 14.*15
-    cz0, cz1 = 0, 14000
+    #ra0, ra1 = 8.*15, 14.*15
+    #cz0, cz1 = 0, 14000
     grid_helper = floating_axes.GridHelperCurveLinear(tr,
                                         extremes=(ra0, ra1, cz0, cz1),
                                         grid_locator1=grid_locator1,
@@ -110,8 +110,9 @@ def setup_axes3(fig, rect):
     ax1.axis["top"].major_ticklabels.set_axis_direction("top")
     ax1.axis["top"].label.set_axis_direction("top")
 
-    ax1.axis["left"].label.set_text(r"cz [km$^{-1}$]")
-    ax1.axis["top"].label.set_text(r"$\alpha_{1950}$")
+    ax1.axis["left"].label.set_text(r"$\mathrm{\chi \, \left[ c/H_{0} \right]}$")
+    ax1.axis["left"].label.set_size("20")
+    ax1.axis["top"].label.set_text("R.A.")
 
 
     # create a parasite axes whose transData in RA, cz
@@ -127,7 +128,7 @@ def setup_axes3(fig, rect):
 
 
 
-if 1:
+if __name__ == "__main__":
     import matplotlib.pyplot as plt
     fig = plt.figure(1, figsize=(8, 4))
     fig.subplots_adjust(wspace=0.3, left=0.05, right=0.95)
