@@ -1,6 +1,7 @@
 from xlrd import open_workbook
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.path as mplPath
 from astropy.io.ascii import read
 from scipy.integrate import quad
 import socket
@@ -136,7 +137,7 @@ def startup_sdss():
     sdss_dec = fh['dec']
     return sdss_z,sdss_ra,sdss_dec
 
-def plot_dec_slice(dec_min, dec_max, withclusters=False, withbounds=False):
+def plot_dec_slice(dec_min, dec_max, withclusters=False, withbounds=False, justgalsinside=False):
 
     # prelinimary stuff
     # all unique cluster names, RA/Dec values, and redshifts
@@ -174,19 +175,30 @@ def plot_dec_slice(dec_min, dec_max, withclusters=False, withbounds=False):
 
     fig = plt.gcf()
     ax3, aux_ax3 = setup_axes3(fig, 111, ra0=100, ra1=270, cz1=dist_max)
-    aux_ax3.scatter(sdss_ra_trim, sdss_dist_trim,marker='.',s=1,color='black',zorder=1)
+    if justgalsinside is False:
+        aux_ax3.scatter(sdss_ra_trim, sdss_dist_trim,marker='.',s=1,color='black',zorder=1)
     if withclusters is True:
         aux_ax3.scatter(gr15_ra_trim, gr15_dist_trim,marker='o',color='red',zorder=2)
     if withbounds is True:
-        radius = 0.0033 # 10 h^-1 Mpc 
+        radius = 0.0033 # 10 h^-1 Mpc (in units of c/H_0)
+        theta_0 = 85*(2*np.pi/360)
+        circle_list = []
         for i in range(len(gr15_ra_trim)):
-            #circle=plt.Circle((gr15_ra_trim[i],gr15_dist_trim[i]),radius,color='b',fill=False)
-            #aux_ax3.add_artist(circle)
-            theta_tmp = np.linspace(0,2*np.pi,400)
-            ra_list_tmp = [gr15_ra_trim[i]+(radius/2)*(1+gr15_z_trim[i])/(ComovingDistance(gr15_z_trim[i]))*np.cos(j) for j in theta_tmp]
-            z_list_tmp = [gr15_dist_trim[i]+radius*np.sin(j) for j in theta_tmp]
-            aux_ax3.plot(ra_list_tmp,z_list_tmp,color='b')
-            #fig.gca().add_artist(circle)
+            tmp_ra_rads = gr15_ra_trim[i] * (2*np.pi)/360.
+            circle=plt.Circle((-1*gr15_dist_trim[i]*np.cos(tmp_ra_rads+theta_0),-1*gr15_dist_trim[i]*np.sin(tmp_ra_rads+theta_0)),radius,color='b',transform=aux_ax3.transData._b,fill=False)
+            circle_list.append(circle)
+            aux_ax3.add_artist(circle)
+    if justgalsinside is True:
+        print("Plotting only sdss galaxies which are within cluster bounds...")
+        for i in range(len(circle_list)):
+            for j in range(len(sdss_ra_trim)):
+                tmp_ra_rads = gr15_ra_trim[i] * (2*np.pi)/360.
+                #ipdb.set_trace()
+                #if circle_list[i].contains_point((-1*gr15_dist_trim[i]*np.cos(tmp_ra_rads+theta_0),-1*gr15_dist_trim[i]*np.sin(tmp_ra_rads+theta_0))):
+                if sdss_dist_trim[j] <= gr15_dist_trim[i] + radius and sdss_dist_trim[j] >= gr15_dist_trim[i] - radius:
+                    if sdss_ra_trim[j] <= gr15_ra_trim[i] + (radius*(1+gr15_z_trim[i])/ComovingDistance(gr15_z_trim[i]))*(360/(2*np.pi)) and sdss_ra_trim[j] >= gr15_ra_trim[i] - (radius*(1+gr15_z_trim[i])/ComovingDistance(gr15_z_trim[i]))*(360/(2*np.pi)):
+                        print("Found galaxy inside")
+                        aux_ax3.scatter(sdss_ra_trim[j], sdss_dist_trim[j],marker='.',s=1,color='black',zorder=1)
     plt.show()
     return
 
@@ -207,5 +219,5 @@ if __name__ == "__main__":
     dec_min = 10
     dec_max = 12
     #cl_list,ra_list,dec_list,z_list = clusters_within_region(ra_min=100,ra_max=270,dec_min=dec_min,dec_max=dec_max,plotregion=True)
-    plot_dec_slice(dec_min,dec_max,withclusters=True,withbounds=True)
+    plot_dec_slice(dec_min,dec_max,withclusters=True,withbounds=True,justgalsinside=True)
     
