@@ -1,5 +1,6 @@
 from xlrd import open_workbook
 import numpy as np
+import math
 import matplotlib.pyplot as plt
 import matplotlib.path as mplPath
 from astropy.io.ascii import read
@@ -190,17 +191,38 @@ def plot_dec_slice(dec_min, dec_max, withclusters=False, withbounds=False, justg
             aux_ax3.add_artist(circle)
     if justgalsinside is True:
         print("Plotting only sdss galaxies which are within cluster bounds...")
+        master_gal = [[] for i in range(len(circle_list))]
+        master_cl = [[] for i in range(len(circle_list))]
         for i in range(len(circle_list)):
+            master_cl[i].append([gr15_ra_trim[i], gr15_dist_trim[i]])
             for j in range(len(sdss_ra_trim)):
                 tmp_ra_rads = gr15_ra_trim[i] * (2*np.pi)/360.
                 #ipdb.set_trace()
                 #if circle_list[i].contains_point((-1*gr15_dist_trim[i]*np.cos(tmp_ra_rads+theta_0),-1*gr15_dist_trim[i]*np.sin(tmp_ra_rads+theta_0))):
                 if sdss_dist_trim[j] <= gr15_dist_trim[i] + radius and sdss_dist_trim[j] >= gr15_dist_trim[i] - radius:
                     if sdss_ra_trim[j] <= gr15_ra_trim[i] + (radius*(1+gr15_z_trim[i])/ComovingDistance(gr15_z_trim[i]))*(360/(2*np.pi)) and sdss_ra_trim[j] >= gr15_ra_trim[i] - (radius*(1+gr15_z_trim[i])/ComovingDistance(gr15_z_trim[i]))*(360/(2*np.pi)):
-                        print("Found galaxy inside")
+                        master_gal[i].append([sdss_ra_trim[j], sdss_dist_trim[j]])
                         aux_ax3.scatter(sdss_ra_trim[j], sdss_dist_trim[j],marker='.',s=1,color='black',zorder=1)
     plt.show()
-    return
+    return master_gal,master_cl
+
+def measure_angles(master_gal,master_cl):
+    n_cl_in_slice = len(master_cl)
+    alpha_list = [[] for i in range(len(master_cl))]
+    for i in range(n_cl_in_slice):
+        theta_c = master_cl[i][0][0]*(2*np.pi/360)
+        r_c = master_cl[i][0][1]
+        vec_c = [r_c*np.cos(theta_c),r_c*np.sin(theta_c)]
+        vec_c_norm = [k/np.linalg.norm(vec_c) for k in vec_c]
+        n_gals_per_cl = len(master_gal[i])
+        for j in range(n_gals_per_cl):
+            tmp_r_g = master_gal[i][j][1]
+            tmp_theta_g = master_gal[i][j][0]*(2*np.pi/360)
+            tmp_vec_n = [(tmp_r_g*np.cos(tmp_theta_g) - r_c*np.cos(theta_c)),(tmp_r_g*np.sin(tmp_theta_g) - r_c*np.sin(theta_c))]
+            tmp_alpha = math.acos(np.dot(tmp_vec_n,vec_c_norm)/np.linalg.norm(tmp_vec_n))
+            alpha_list[i].append(tmp_alpha)
+    
+    return alpha_list
 
 # /--- Preliminary Stuff ---/ #
 
@@ -219,5 +241,6 @@ if __name__ == "__main__":
     dec_min = 10
     dec_max = 12
     #cl_list,ra_list,dec_list,z_list = clusters_within_region(ra_min=100,ra_max=270,dec_min=dec_min,dec_max=dec_max,plotregion=True)
-    plot_dec_slice(dec_min,dec_max,withclusters=True,withbounds=True,justgalsinside=True)
-    
+    master_gal,master_cl = plot_dec_slice(dec_min,dec_max,withclusters=True,withbounds=True,justgalsinside=True)
+    measure_angles(master_gal,master_cl)
+    ipdb.set_trace()
