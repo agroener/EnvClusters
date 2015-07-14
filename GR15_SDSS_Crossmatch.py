@@ -220,6 +220,8 @@ def measure_angles(master_gal,master_cl):
             tmp_theta_g = master_gal[i][j][0]*(2*np.pi/360)
             tmp_vec_n = [(tmp_r_g*np.cos(tmp_theta_g) - r_c*np.cos(theta_c)),(tmp_r_g*np.sin(tmp_theta_g) - r_c*np.sin(theta_c))]
             tmp_alpha = math.acos(np.dot(tmp_vec_n,vec_c_norm)/np.linalg.norm(tmp_vec_n))
+            if tmp_alpha >= np.pi/2:
+                tmp_alpha = np.pi - tmp_alpha
             alpha_list[i].append(tmp_alpha)
     
     return alpha_list
@@ -242,5 +244,5 @@ if __name__ == "__main__":
     dec_max = 12
     #cl_list,ra_list,dec_list,z_list = clusters_within_region(ra_min=100,ra_max=270,dec_min=dec_min,dec_max=dec_max,plotregion=True)
     master_gal,master_cl = plot_dec_slice(dec_min,dec_max,withclusters=True,withbounds=True,justgalsinside=True)
-    measure_angles(master_gal,master_cl)
+    alpha_list = measure_angles(master_gal,master_cl)
     ipdb.set_trace()
