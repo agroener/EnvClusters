@@ -234,7 +234,7 @@ clusters,redshift,methods,c200,c200_plus,c200_minus,m200,m200_plus,m200_minus,cv
 
 # Get sdss galaxy data
 print("Loading SDSS galaxy data...")
-sdss_z,sdss_ra,sdss_dec = startup_sdss()
+#sdss_z,sdss_ra,sdss_dec = startup_sdss()
 
 
 
@@ -242,7 +242,10 @@ sdss_z,sdss_ra,sdss_dec = startup_sdss()
 if __name__ == "__main__":
     dec_min = 10
     dec_max = 12
-    #cl_list,ra_list,dec_list,z_list = clusters_within_region(ra_min=100,ra_max=270,dec_min=dec_min,dec_max=dec_max,plotregion=True)
-    master_gal,master_cl = plot_dec_slice(dec_min,dec_max,withclusters=True,withbounds=True,justgalsinside=True)
-    alpha_list = measure_angles(master_gal,master_cl)
+    #master_gal,master_cl = plot_dec_slice(dec_min,dec_max,withclusters=True,withbounds=True,justgalsinside=True)
+    #alpha_list = measure_angles(master_gal,master_cl)
+    import sys
+    sys.path.append('/Users/groenera/Desktop/GithubRepositories/obscm/ClusterPipeline.py')
+    #import ClusterPipeline as CP
+    #mvir_norm,mvir_p_norm,mvir_m_norm,cvir_norm,cvir_p_norm,cvir_m_norm,methods_norm,z_norm,cl_norm,refs_norm = CP.get_normalized_data()
     ipdb.set_trace()
