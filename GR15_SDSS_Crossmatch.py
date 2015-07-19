@@ -174,6 +174,11 @@ def plot_dec_slice(dec_min, dec_max, withclusters=False, withbounds=False, justg
     ra_min = 100
     ra_max = 270
     if withclusters is True:
+        gr15_cl_trim = [gr15_unique_clusters[i] for i in range(len(gr15_unique_z))
+                        if gr15_unique_ra[i] >= ra_min
+                        and gr15_unique_ra[i] <= ra_max
+                        and gr15_unique_dec[i] >= dec_min
+                        and gr15_unique_dec[i] <= dec_max]
         gr15_ra_trim = [gr15_unique_ra[i] for i in range(len(gr15_unique_z))
                         if gr15_unique_ra[i] >= ra_min
                         and gr15_unique_ra[i] <= ra_max
@@ -211,7 +216,7 @@ def plot_dec_slice(dec_min, dec_max, withclusters=False, withbounds=False, justg
         master_gal = [[] for i in range(len(circle_list))]
         master_cl = [[] for i in range(len(circle_list))]
         for i in range(len(circle_list)):
-            master_cl[i].append([gr15_ra_trim[i], gr15_dist_trim[i]])
+            master_cl[i].append([gr15_ra_trim[i], gr15_dist_trim[i], gr15_cl_trim[i]])
             for j in range(len(sdss_ra_trim)):
                 tmp_ra_rads = gr15_ra_trim[i] * (2*np.pi)/360.
                 #ipdb.set_trace()
@@ -238,12 +243,22 @@ def measure_angles(master_gal,master_cl):
             tmp_vec_n = [(tmp_r_g*np.cos(tmp_theta_g) - r_c*np.cos(theta_c)),(tmp_r_g*np.sin(tmp_theta_g) - r_c*np.sin(theta_c))]
             tmp_alpha = math.acos(np.dot(tmp_vec_n,vec_c_norm)/np.linalg.norm(tmp_vec_n))
             if tmp_alpha >= np.pi/2:
-                tmp_alpha = np.pi - tmp_alpha
+                ## range centered around zero (-np.pi/2 to np.pi/2)
+                tmp_alpha = tmp_alpha - np.pi
+                ## range from zero to np.pi/2
+                #tmp_alpha = np.pi - tmp_alpha
             alpha_list[i].append(tmp_alpha)
     
     return alpha_list
 
-def process_alpha_list(alpha_list):
+def process_alpha_list(alpha_list, thresh=100):
+    gal_nums_per_cl = [len(master_gal[i]) for i in range(len(master_gal))]
+    indices_thresh = [i for i in range(len(alpha_list)) if gal_nums_per_cl[i] >= thresh]
+    alpha_list_thresh = [alpha_list[i] for i in indices_thresh]
+    cl_thresh = [master_cl[i] for i in indices_thresh]
+    ## Need to rethink using averages/standard deviations for measuring distribution of angles
+    aves_thresh = [np.average(alpha_list_thresh[i]) for i in range(len(alpha_list_thresh))]
+    stds_thresh = [np.std(alpha_list_thresh[i]) for i in range(len(alpha_list_thresh))]
     ipdb.set_trace()
     return
 
@@ -273,6 +288,7 @@ if __name__ == "__main__":
     # (2)
     alpha_list = measure_angles(master_gal,master_cl)
     process_alpha_list(alpha_list)
+    ipdb.set_trace()
     # (3)
     #ipdb.set_trace()
 
