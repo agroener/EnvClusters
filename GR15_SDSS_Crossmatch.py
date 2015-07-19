@@ -89,6 +89,23 @@ def startup():
     dec = sheet1.col_values(-1)[1:]
     return clusters,redshift,methods,c200,c200_plus,c200_minus,m200,m200_plus,m200_minus,cvir,cvir_plus,cvir_minus,mvir,mvir_plus,mvir_minus,short_refs,orig_convention,cosmology,ra,dec
 
+def startup_processed():
+    if socket.gethostname() == 'Umbriel':
+        fh = read("/home/groenera/Desktop/GithubRepositories/envclusters/EnvClusters/GR15_normalized.csv")
+    else:
+        fh = read("/Users/groenera/Desktop/GithubRepositories/envclusters/EnvClusters/GR15_normalized.csv")
+    mvir = fh['mvir']
+    mvir_p = fh['mvir_p']
+    mvir_m = fh['mvir_m']
+    cvir = fh['cvir']
+    cvir_p = fh['cvir_p']
+    cvir_m = fh['cvir_m']
+    methods = fh['methods']
+    z = fh['z']
+    cl = fh['cl']
+    refs = fh['refs']
+    return mvir,mvir_p,mvir_m,cvir,cvir_p,cvir_m,methods,z,cl,refs
+
 def clusters_within_region(ra_min,ra_max,dec_min,dec_max,plotregion=False):
     # mandate that min values are smaller than max values
     assert ra_min < ra_max, "Minimum R.A. must be smaller than maximum value."
@@ -226,26 +243,38 @@ def measure_angles(master_gal,master_cl):
     
     return alpha_list
 
+def process_alpha_list(alpha_list):
+    ipdb.set_trace()
+    return
+
 # /--- Preliminary Stuff ---/ #
 
-# Get GR15 clusters
+# Get all GR15 cluster data
 print("Loading cluster data from Groener & Goldberg (2015)...")
 clusters,redshift,methods,c200,c200_plus,c200_minus,m200,m200_plus,m200_minus,cvir,cvir_plus,cvir_minus,mvir,mvir_plus,mvir_minus,short_refs,orig_convention,cosmology,ra,dec = startup()        
 
+# Get normalized concs/masses
+print("Loading normalized cluster data (post-processed)...")
+pro_mvir,pro_mvir_p,pro_mvir_m,pro_cvir,pro_cvir_p,pro_cvir_m,pro_methods,pro_z,pro_cl,pro_refs = startup_processed()
+
 # Get sdss galaxy data
 print("Loading SDSS galaxy data...")
-#sdss_z,sdss_ra,sdss_dec = startup_sdss()
+sdss_z,sdss_ra,sdss_dec = startup_sdss()
 
 
 
 
 if __name__ == "__main__":
+    # Procedure: (1) Select SDSS galaxies in slice; (2) measure angles; (3) correlate with cluster mass/conc measurements
     dec_min = 10
     dec_max = 12
-    #master_gal,master_cl = plot_dec_slice(dec_min,dec_max,withclusters=True,withbounds=True,justgalsinside=True)
-    #alpha_list = measure_angles(master_gal,master_cl)
-    import sys
-    sys.path.append('/Users/groenera/Desktop/GithubRepositories/obscm/ClusterPipeline.py')
-    #import ClusterPipeline as CP
-    #mvir_norm,mvir_p_norm,mvir_m_norm,cvir_norm,cvir_p_norm,cvir_m_norm,methods_norm,z_norm,cl_norm,refs_norm = CP.get_normalized_data()
-    ipdb.set_trace()
+    # (1)
+    master_gal,master_cl = plot_dec_slice(dec_min,dec_max,withclusters=True,withbounds=True,justgalsinside=True)
+    # (2)
+    alpha_list = measure_angles(master_gal,master_cl)
+    process_alpha_list(alpha_list)
+    # (3)
+    #ipdb.set_trace()
+
+    ## Odds and ends
+    
