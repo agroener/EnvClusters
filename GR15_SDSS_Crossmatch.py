@@ -5,7 +5,9 @@ import matplotlib.pyplot as plt
 import matplotlib.path as mplPath
 from astropy.io.ascii import read
 from scipy.integrate import quad
+from scipy.stats import pearsonr
 import socket
+import time
 
 # Special slice plotting
 from demo_floating_axes import setup_axes3
@@ -329,7 +331,7 @@ def correlate_all_slices(dec_min=0,dec_max=66):
     dec_list = range(dec_min,dec_max,dec_step)
     out_mvir,out_mvir_p = ([],[])
     out_y,out_y_p = ([],[])
-    out_perc_thresh = []
+    out_aves_thresh,out_stds_thresh,out_med_thresh,out_mad_thresh,out_perc_thresh = ([],[],[],[],[])
     for dec in dec_list:
         print("  Declination slice: {} to {}".format(dec,dec+dec_step))
         # Procedure: (1) Select SDSS galaxies in slice; (2) measure angles; (3) correlate with cluster mass/conc measurements
@@ -346,14 +348,22 @@ def correlate_all_slices(dec_min=0,dec_max=66):
         out_mvir_p.append(coadd_p_mvir_p)
         out_y.append(coadd_p_y)
         out_y_p.append(coadd_p_y_p)
+        out_aves_thresh.append(aves_thresh)
+        out_stds_thresh.append(stds_thresh)
+        out_med_thresh.append(med_thresh)
+        out_mad_thresh.append(mad_thresh)
         out_perc_thresh.append(perc_thresh)
     # Flatten data into a single list
     out_mvir = [item for sublist in out_mvir for item in sublist]
     out_mvir_p = [item for sublist in out_mvir_p for item in sublist]
     out_y = [item for sublist in out_y for item in sublist]
     out_y_p = [item for sublist in out_y_p for item in sublist]
+    out_aves_thresh = [item for sublist in out_aves_thresh for item in sublist]
+    out_stds_thresh = [item for sublist in out_stds_thresh for item in sublist]
+    out_med_thresh = [item for sublist in out_med_thresh for item in sublist]
+    out_mad_thresh = [item for sublist in out_mad_thresh for item in sublist]
     out_perc_thresh = [item for sublist in out_perc_thresh for item in sublist]
-    return out_mvir,out_mvir_p,out_y,out_y_p,out_perc_thresh
+    return out_mvir,out_mvir_p,out_y,out_y_p,out_aves_thresh,out_stds_thresh,out_med_thresh,out_mad_thresh,out_perc_thresh
 
 # /--- Preliminary Stuff ---/ #
 
@@ -386,7 +396,54 @@ if __name__ == "__main__":
     coadd_p_mvir,coadd_p_mvir_p,coadd_p_y,coadd_p_y_p=get_concs_and_masses(cl_thresh)
     ipdb.set_trace()
     '''
+    t0 = time.time()
+    out_mvir,out_mvir_p,out_y,out_y_p,out_aves_thresh,out_stds_thresh,out_med_thresh,out_mad_thresh,out_perc_thresh = correlate_all_slices()
+    t1 = time.time()
+    print("Total Time: {} seconds.".format(str(t1-t0)))
 
-    out_mvir,out_mvir_p,out_y,out_y_p,out_perc_thresh = correlate_all_slices()
+    
     # Do plotting and stats here
+    f, axarr = plt.subplots(2, sharex=True)
+    axarr[0].errorbar(out_perc_thresh,np.log10(out_mvir),yerr=np.log10(out_mvir_p),color='red',fmt='o')
+    axarr[0].set_ylabel(r"$\mathrm{\log_{10} \, M_{vir}/10^{14} M_{\odot}}$",fontsize=18)
+    axarr[0].set_ylim(-0.1,2) #be careful about chopping data points
+    axarr[0].set_xlim(0,1)
+    axarr[0].text(0.1,1.7,"pearsonr: {}\np-value:   {}".format(round(pearsonr(out_perc_thresh,out_mvir)[0],3),round(pearsonr(out_perc_thresh,out_mvir)[1],3)))
+    axarr[1].errorbar(out_perc_thresh,np.log10(out_y),yerr=np.log10(out_y_p),color='blue',fmt='o')
+    axarr[1].set_ylabel(r"$\mathrm{log_{10}\, c_{vir} \, (1+z)}$",fontsize=18)
+    axarr[1].set_ylim(-0.1,2) #be careful about chopping data points
+    axarr[1].set_xlim(0,1)
+    axarr[1].set_xlabel(r"$\mathrm{\frac{N(\alpha < \pi/4)}{N_{tot}}}$",fontsize=18)
+    axarr[1].text(0.1,1.5,"pearsonr: {}\np-value:   {}".format(round(pearsonr(out_perc_thresh,np.log10(out_y))[0],3),round(pearsonr(out_perc_thresh,np.log10(out_y))[1],3)))
+    plt.show()
+   
+    f, axarr = plt.subplots(2, sharex=True)
+    axarr[0].errorbar(out_aves_thresh,np.log10(out_mvir),yerr=np.log10(out_mvir_p),color='red',fmt='o')
+    axarr[0].set_ylabel(r"$\mathrm{\log_{10} \, M_{vir}/10^{14} M_{\odot}}$",fontsize=18)
+    axarr[0].set_ylim(-0.1,2) #be careful about chopping data points
+    axarr[0].set_xlim(0,np.pi/2)
+    axarr[0].text(0.1,1.7,"pearsonr: {}\np-value:   {}".format(round(pearsonr(out_aves_thresh,out_mvir)[0],3),round(pearsonr(out_aves_thresh,out_mvir)[1],3)))
+    axarr[1].errorbar(out_aves_thresh,np.log10(out_y),yerr=np.log10(out_y_p),color='blue',fmt='o')
+    axarr[1].set_ylabel(r"$\mathrm{log_{10}\, c_{vir} \, (1+z)}$",fontsize=18)
+    axarr[1].set_ylim(-0.1,2) #be careful about chopping data points
+    axarr[1].set_xlim(0,np.pi/2)
+    axarr[1].set_xlabel(r"$\mathrm{\langle \alpha \rangle}$",fontsize=18)
+    axarr[1].text(0.1,1.5,"pearsonr: {}\np-value:   {}".format(round(pearsonr(out_aves_thresh,np.log10(out_y))[0],3),round(pearsonr(out_aves_thresh,np.log10(out_y))[1],3)))
+    plt.show()
+
+    f, axarr = plt.subplots(2, sharex=True)
+    axarr[0].errorbar(out_med_thresh,np.log10(out_mvir),yerr=np.log10(out_mvir_p),color='red',fmt='o')
+    axarr[0].set_ylabel(r"$\mathrm{\log_{10} \, M_{vir}/10^{14} M_{\odot}}$",fontsize=18)
+    axarr[0].set_ylim(-0.1,2) #be careful about chopping data points
+    axarr[0].set_xlim(0,np.pi/2)
+    axarr[0].text(1.2,1.7,"pearsonr: {}\np-value:   {}".format(round(pearsonr(out_med_thresh,out_mvir)[0],3),round(pearsonr(out_med_thresh,out_mvir)[1],3)))
+    axarr[1].errorbar(out_med_thresh,np.log10(out_y),yerr=np.log10(out_y_p),color='blue',fmt='o')
+    axarr[1].set_ylabel(r"$\mathrm{log_{10}\, c_{vir} \, (1+z)}$",fontsize=18)
+    axarr[1].set_ylim(-0.1,2) #be careful about chopping data points
+    axarr[1].set_xlim(0,np.pi/2)
+    axarr[1].set_xlabel(r"$\mathrm{median(\alpha)}$",fontsize=18)
+    axarr[1].text(1.2,1.7,"pearsonr: {}\np-value:   {}".format(round(pearsonr(out_med_thresh,np.log10(out_y))[0],3),round(pearsonr(out_med_thresh,np.log10(out_y))[1],3)))
+    plt.show()
+    
+    
     ipdb.set_trace()
