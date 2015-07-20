@@ -91,7 +91,7 @@ def startup():
 
 def startup_processed():
     if socket.gethostname() == 'Umbriel':
-        fh = read("/home/groenera/Desktop/GithubRepositories/envclusters/EnvClusters/GR15_normalized.csv")
+        fh = read("/home/groenera/Desktop/GitHubRepos/EnvClusters/GR15_normalized.csv")
     else:
         fh = read("/Users/groenera/Desktop/GithubRepositories/envclusters/EnvClusters/GR15_normalized.csv")
     mvir = fh['mvir']
@@ -155,7 +155,7 @@ def startup_sdss():
     sdss_dec = fh['dec']
     return sdss_z,sdss_ra,sdss_dec
 
-def plot_dec_slice(dec_min, dec_max, withclusters=False, withbounds=False, justgalsinside=False):
+def plot_dec_slice(dec_min, dec_max, withclusters=False, withbounds=False, justgalsinside=False, skipplot=False):
 
     # prelinimary stuff
     # all unique cluster names, RA/Dec values, and redshifts
@@ -165,7 +165,7 @@ def plot_dec_slice(dec_min, dec_max, withclusters=False, withbounds=False, justg
     gr15_unique_z = [redshift[clusters.index(i)] for i in gr15_unique_clusters]
     
     # select from dec slice
-    print("Selecting galaxies from declination slice...")
+    print("  --> Selecting galaxies from declination slice...")
     sdss_dist_trim = [ComovingDistance(sdss_z[i]) for i in range(len(sdss_z)) if sdss_dec[i] >= dec_min and sdss_dec[i] <= dec_max]
     sdss_ra_trim = [sdss_ra[i] for i in range(len(sdss_ra)) if sdss_dec[i] >= dec_min and sdss_dec[i] <= dec_max]
     dist_max = max(sdss_dist_trim)
@@ -194,7 +194,7 @@ def plot_dec_slice(dec_min, dec_max, withclusters=False, withbounds=False, justg
                           and gr15_unique_ra[i] <= ra_max
                           and gr15_unique_dec[i] >= dec_min
                           and gr15_unique_dec[i] <= dec_max]
-        print("Found {} clusters within this declination slice..".format(len(gr15_ra_trim)))
+        print("  --> Found {} clusters within this declination slice..".format(len(gr15_ra_trim)))
 
     fig = plt.gcf()
     ax3, aux_ax3 = setup_axes3(fig, 111, ra0=100, ra1=270, cz1=dist_max)
@@ -212,7 +212,8 @@ def plot_dec_slice(dec_min, dec_max, withclusters=False, withbounds=False, justg
             circle_list.append(circle)
             aux_ax3.add_artist(circle)
     if justgalsinside is True:
-        print("Plotting only sdss galaxies which are within cluster bounds...")
+        if skipplot is False:
+            print("Plotting only sdss galaxies which are within cluster bounds...")
         master_gal = [[] for i in range(len(circle_list))]
         master_cl = [[] for i in range(len(circle_list))]
         for i in range(len(circle_list)):
@@ -225,7 +226,8 @@ def plot_dec_slice(dec_min, dec_max, withclusters=False, withbounds=False, justg
                     if sdss_ra_trim[j] <= gr15_ra_trim[i] + (radius*(1+gr15_z_trim[i])/ComovingDistance(gr15_z_trim[i]))*(360/(2*np.pi)) and sdss_ra_trim[j] >= gr15_ra_trim[i] - (radius*(1+gr15_z_trim[i])/ComovingDistance(gr15_z_trim[i]))*(360/(2*np.pi)):
                         master_gal[i].append([sdss_ra_trim[j], sdss_dist_trim[j]])
                         aux_ax3.scatter(sdss_ra_trim[j], sdss_dist_trim[j],marker='.',s=1,color='black',zorder=1)
-    plt.show()
+    if skipplot is False:
+        plt.show()
     return master_gal,master_cl
 
 def measure_angles(master_gal,master_cl):
@@ -244,23 +246,114 @@ def measure_angles(master_gal,master_cl):
             tmp_alpha = math.acos(np.dot(tmp_vec_n,vec_c_norm)/np.linalg.norm(tmp_vec_n))
             if tmp_alpha >= np.pi/2:
                 ## range centered around zero (-np.pi/2 to np.pi/2)
-                tmp_alpha = tmp_alpha - np.pi
+                #tmp_alpha = tmp_alpha - np.pi
                 ## range from zero to np.pi/2
-                #tmp_alpha = np.pi - tmp_alpha
+                tmp_alpha = np.pi - tmp_alpha
             alpha_list[i].append(tmp_alpha)
     
     return alpha_list
 
-def process_alpha_list(alpha_list, thresh=100):
+def mad(data, axis=None):
+    return np.median(np.absolute(data - np.median(data, axis)), axis)
+
+def process_alpha_list(alpha_list, master_gal, master_cl, thresh=100):
     gal_nums_per_cl = [len(master_gal[i]) for i in range(len(master_gal))]
     indices_thresh = [i for i in range(len(alpha_list)) if gal_nums_per_cl[i] >= thresh]
     alpha_list_thresh = [alpha_list[i] for i in indices_thresh]
-    cl_thresh = [master_cl[i] for i in indices_thresh]
+    cl_thresh = [master_cl[i][0][-1] for i in indices_thresh]
     ## Need to rethink using averages/standard deviations for measuring distribution of angles
+    # aves and stds
     aves_thresh = [np.average(alpha_list_thresh[i]) for i in range(len(alpha_list_thresh))]
     stds_thresh = [np.std(alpha_list_thresh[i]) for i in range(len(alpha_list_thresh))]
-    ipdb.set_trace()
-    return
+    # meds and mads
+    med_thresh = [np.median(alpha_list_thresh[i]) for i in range(len(alpha_list_thresh))]
+    mad_thresh = [mad(alpha_list_thresh[i]) for i in range(len(alpha_list_thresh))]
+    # percentiles of gals with alpha <= np.pi/4
+    perc_thresh= [np.float(len([alpha_list_thresh[j][i] for i in range(len(alpha_list_thresh[j])) if alpha_list_thresh[j][i] <= np.cos(np.pi/4)]))/len(alpha_list_thresh[j]) for j in range(len(alpha_list_thresh))]
+    return cl_thresh,aves_thresh,stds_thresh,med_thresh,mad_thresh,perc_thresh 
+
+def get_concs_and_masses(cl_list, method=None):
+    if method is None:
+        pro_cl_list = pro_cl.data.tolist()
+        #Get all measurements
+        indices = [[i for i in range(len(pro_cl_list)) if cl_list[j] == pro_cl_list[i]] for j in range(len(cl_list))]
+        p_mvir_list = pro_mvir.data.tolist()
+        p_mvir = [[p_mvir_list[i] for i in indices[j]] for j in range(len(indices))]
+        p_mvir_p_list = pro_mvir_p.data.tolist()
+        p_mvir_p = [[p_mvir_p_list[i] for i in indices[j]] for j in range(len(indices))]
+        p_cvir_list = pro_cvir.data.tolist()
+        p_cvir = [[p_cvir_list[i] for i in indices[j]] for j in range(len(indices))]
+        p_cvir_p_list = pro_cvir_p.data.tolist()
+        p_cvir_p = [[p_cvir_p_list[i] for i in indices[j]] for j in range(len(indices))]
+        p_z_list = pro_z.data.tolist()
+        p_z = [[p_z_list[i] for i in indices[j]] for j in range(len(indices))]
+        #Coadd measurements
+        coadd_p_mvir = []
+        coadd_p_mvir_p = []
+        coadd_p_y = []
+        coadd_p_y_p = []
+        for i in range(len(indices)):
+            if len(indices[i]) > 1:
+                #print("More than one cluster here: {}".format(i))
+                # Coadding masses
+                mweights = [(1.0/p_mvir_p[i][j]**2) for j in range(len(p_mvir_p[i]))]
+                mnew = sum([p_mvir[i][j]*mweights[j] for j in range(len(p_mvir[i]))])/sum(mweights)
+                mnew_p = 1.0/np.sqrt(sum(mweights))
+                coadd_p_mvir.append(mnew)
+                coadd_p_mvir_p.append(mnew_p)
+                # Coadding concs*(1+z)
+                y = [p_cvir[i][j]*(1+p_z[i][0]) for j in range(len(p_cvir[i]))]
+                yerr = [p_cvir_p[i][j]*(1+p_z[i][0]) for j in range(len(p_cvir_p[i]))]
+                yweights = [1.0/yerr[j]**2 for j in range(len(yerr))]
+                ynew = sum([y[j]*yweights[j] for j in range(len(yweights))])/sum(yweights)
+                ynew_p = 1.0/np.sqrt(sum(yweights))
+                coadd_p_y.append(ynew)
+                coadd_p_y_p.append(ynew_p)
+            else:
+                #print("Only one cluster here: {}".format(i))
+                coadd_p_mvir.append(p_mvir[i][0])
+                coadd_p_mvir_p.append(p_mvir_p[i][0])
+                y = [p_cvir[i][j]*(1+p_z[i][0]) for j in range(len(p_cvir[i]))]
+                yerr = [p_cvir_p[i][j]*(1+p_z[i][0]) for j in range(len(p_cvir_p[i]))]
+                coadd_p_y.append(y[0])
+                coadd_p_y_p.append(yerr[0])
+                        
+        return coadd_p_mvir,coadd_p_mvir_p,coadd_p_y,coadd_p_y_p
+    else:
+        ipdb.set_trace()
+        #Select measurements based upon method
+        #Coadd measurements
+
+def correlate_all_slices(dec_min=0,dec_max=66):
+    dec_step = 2 # in degrees
+    dec_list = range(dec_min,dec_max,dec_step)
+    out_mvir,out_mvir_p = ([],[])
+    out_y,out_y_p = ([],[])
+    out_perc_thresh = []
+    for dec in dec_list:
+        print("  Declination slice: {} to {}".format(dec,dec+dec_step))
+        # Procedure: (1) Select SDSS galaxies in slice; (2) measure angles; (3) correlate with cluster mass/conc measurements
+        tmp_dec_min = dec
+        tmp_dec_max = dec+dec_step
+        # (1)
+        master_gal,master_cl = plot_dec_slice(tmp_dec_min,tmp_dec_max,withclusters=True,withbounds=True,justgalsinside=True,skipplot=True)
+        # (2)
+        alpha_list = measure_angles(master_gal,master_cl)
+        cl_thresh,aves_thresh,stds_thresh,med_thresh,mad_thresh,perc_thresh=process_alpha_list(alpha_list,master_gal,master_cl)
+        # (3)
+        coadd_p_mvir,coadd_p_mvir_p,coadd_p_y,coadd_p_y_p=get_concs_and_masses(cl_thresh)
+        out_mvir.append(coadd_p_mvir)
+        out_mvir_p.append(coadd_p_mvir_p)
+        out_y.append(coadd_p_y)
+        out_y_p.append(coadd_p_y_p)
+        out_perc_thresh.append(perc_thresh)
+    # Flatten data into a single list
+    out_mvir = [item for sublist in out_mvir for item in sublist]
+    out_mvir_p = [item for sublist in out_mvir_p for item in sublist]
+    out_y = [item for sublist in out_y for item in sublist]
+    out_y_p = [item for sublist in out_y_p for item in sublist]
+    out_perc_thresh = [item for sublist in out_perc_thresh for item in sublist]
+    return out_mvir,out_mvir_p,out_y,out_y_p,out_perc_thresh
 
 # /--- Preliminary Stuff ---/ #
 
@@ -273,13 +366,14 @@ print("Loading normalized cluster data (post-processed)...")
 pro_mvir,pro_mvir_p,pro_mvir_m,pro_cvir,pro_cvir_p,pro_cvir_m,pro_methods,pro_z,pro_cl,pro_refs = startup_processed()
 
 # Get sdss galaxy data
-print("Loading SDSS galaxy data...")
+print("Loading SDSS galaxy data...\n")
 sdss_z,sdss_ra,sdss_dec = startup_sdss()
 
 
 
 
 if __name__ == "__main__":
+    '''
     # Procedure: (1) Select SDSS galaxies in slice; (2) measure angles; (3) correlate with cluster mass/conc measurements
     dec_min = 10
     dec_max = 12
@@ -287,10 +381,12 @@ if __name__ == "__main__":
     master_gal,master_cl = plot_dec_slice(dec_min,dec_max,withclusters=True,withbounds=True,justgalsinside=True)
     # (2)
     alpha_list = measure_angles(master_gal,master_cl)
-    process_alpha_list(alpha_list)
-    ipdb.set_trace()
+    cl_thresh,aves_thresh,stds_thresh,med_thresh,mad_thresh,perc_thresh=process_alpha_list(alpha_list)
     # (3)
-    #ipdb.set_trace()
+    coadd_p_mvir,coadd_p_mvir_p,coadd_p_y,coadd_p_y_p=get_concs_and_masses(cl_thresh)
+    ipdb.set_trace()
+    '''
 
-    ## Odds and ends
-    
+    out_mvir,out_mvir_p,out_y,out_y_p,out_perc_thresh = correlate_all_slices()
+    # Do plotting and stats here
+    ipdb.set_trace()
