@@ -157,7 +157,7 @@ def startup_sdss():
     sdss_dec = fh['dec']
     return sdss_z,sdss_ra,sdss_dec
 
-def plot_dec_slice(dec_min, dec_max, withclusters=False, withbounds=False, justgalsinside=False, skipplot=False):
+def plot_dec_slice(dec_min, dec_max, withclusters=False, withbounds=False, justgalsinside=False, skipplot=False, specificcluster=None):
 
     # prelinimary stuff
     # all unique cluster names, RA/Dec values, and redshifts
@@ -165,9 +165,12 @@ def plot_dec_slice(dec_min, dec_max, withclusters=False, withbounds=False, justg
     gr15_unique_ra = [ra_to_deg(ra[clusters.index(i)]) for i in gr15_unique_clusters]
     gr15_unique_dec = [dec_to_deg(dec[clusters.index(i)]) for i in gr15_unique_clusters]
     gr15_unique_z = [redshift[clusters.index(i)] for i in gr15_unique_clusters]
+    if specificcluster is not None:
+        assert specificcluster in gr15_unique_clusters, "Cluster does not appear to be in this slice... "
     
     # select from dec slice
-    print("  --> Selecting galaxies from declination slice...")
+    if specificcluster is not None:
+        print("  --> Selecting galaxies from declination slice...")
     sdss_dist_trim = [ComovingDistance(sdss_z[i]) for i in range(len(sdss_z)) if sdss_dec[i] >= dec_min and sdss_dec[i] <= dec_max]
     sdss_ra_trim = [sdss_ra[i] for i in range(len(sdss_ra)) if sdss_dec[i] >= dec_min and sdss_dec[i] <= dec_max]
     dist_max = max(sdss_dist_trim)
@@ -176,34 +179,50 @@ def plot_dec_slice(dec_min, dec_max, withclusters=False, withbounds=False, justg
     ra_min = 100
     ra_max = 270
     if withclusters is True:
-        gr15_cl_trim = [gr15_unique_clusters[i] for i in range(len(gr15_unique_z))
-                        if gr15_unique_ra[i] >= ra_min
-                        and gr15_unique_ra[i] <= ra_max
-                        and gr15_unique_dec[i] >= dec_min
-                        and gr15_unique_dec[i] <= dec_max]
-        gr15_ra_trim = [gr15_unique_ra[i] for i in range(len(gr15_unique_z))
-                        if gr15_unique_ra[i] >= ra_min
-                        and gr15_unique_ra[i] <= ra_max
-                        and gr15_unique_dec[i] >= dec_min
-                        and gr15_unique_dec[i] <= dec_max]
-        gr15_dist_trim = [ComovingDistance(gr15_unique_z[i]) for i in range(len(gr15_unique_z))
-                          if gr15_unique_ra[i] >= ra_min
-                          and gr15_unique_ra[i] <= ra_max
-                          and gr15_unique_dec[i] >= dec_min
-                          and gr15_unique_dec[i] <= dec_max]
-        gr15_z_trim = [gr15_unique_z[i] for i in range(len(gr15_unique_z))
-                          if gr15_unique_ra[i] >= ra_min
-                          and gr15_unique_ra[i] <= ra_max
-                          and gr15_unique_dec[i] >= dec_min
-                          and gr15_unique_dec[i] <= dec_max]
-        print("  --> Found {} clusters within this declination slice..".format(len(gr15_ra_trim)))
+        if specificcluster is None:
+            gr15_cl_trim = [gr15_unique_clusters[i] for i in range(len(gr15_unique_z))
+                            if gr15_unique_ra[i] >= ra_min
+                            and gr15_unique_ra[i] <= ra_max
+                            and gr15_unique_dec[i] >= dec_min
+                            and gr15_unique_dec[i] <= dec_max]
+            gr15_ra_trim = [gr15_unique_ra[i] for i in range(len(gr15_unique_z))
+                            if gr15_unique_ra[i] >= ra_min
+                            and gr15_unique_ra[i] <= ra_max
+                            and gr15_unique_dec[i] >= dec_min
+                            and gr15_unique_dec[i] <= dec_max]
+            gr15_dist_trim = [ComovingDistance(gr15_unique_z[i]) for i in range(len(gr15_unique_z))
+                            if gr15_unique_ra[i] >= ra_min
+                            and gr15_unique_ra[i] <= ra_max
+                            and gr15_unique_dec[i] >= dec_min
+                            and gr15_unique_dec[i] <= dec_max]
+            gr15_z_trim = [gr15_unique_z[i] for i in range(len(gr15_unique_z))
+                           if gr15_unique_ra[i] >= ra_min
+                           and gr15_unique_ra[i] <= ra_max
+                           and gr15_unique_dec[i] >= dec_min
+                           and gr15_unique_dec[i] <= dec_max]
+        if specificcluster is not None:
+            gr15_cl_trim = [specificcluster]
+            gr15_ra_trim = [gr15_unique_ra[i] for i in range(len(gr15_unique_z))
+                            if gr15_unique_clusters[i] == specificcluster]
+            gr15_dist_trim = [ComovingDistance(gr15_unique_z[i]) for i in range(len(gr15_unique_z))
+                            if gr15_unique_clusters[i] == specificcluster]
+            gr15_z_trim = [gr15_unique_z[i] for i in range(len(gr15_unique_z))
+                            if gr15_unique_clusters[i] == specificcluster]
+        if specificcluster is None:
+            print("  --> Found {} clusters within this declination slice..".format(len(gr15_ra_trim)))
 
+    
     fig = plt.gcf()
     ax3, aux_ax3 = setup_axes3(fig, 111, ra0=100, ra1=270, cz1=dist_max)
     if justgalsinside is False:
-        aux_ax3.scatter(sdss_ra_trim, sdss_dist_trim,marker='.',s=1,color='black',zorder=1)
+        aux_ax3.scatter(sdss_ra_trim, sdss_dist_trim,marker='.',s=1,color='black',zorder=2)
     if withclusters is True:
-        aux_ax3.scatter(gr15_ra_trim, gr15_dist_trim,marker='o',color='red',zorder=2)
+        aux_ax3.scatter(gr15_ra_trim, gr15_dist_trim,marker='o',color='red',zorder=3)
+        for i in range(len(gr15_ra_trim)):
+            tmp_ras = 1000*[gr15_ra_trim[i]]
+            tmp_dists = np.linspace(gr15_dist_trim[i]-0.0033,gr15_dist_trim[i]+0.0033,1000)
+            #arw = plt.arrow(gr15_ra_trim[i], gr15_dist_trim[i], gr15_ra_trim[i], gr15_dist_trim[i]+10.0, alpha=0.5, width=100.015,edgecolor='black', facecolor='green', lw=2, zorder=5)
+            aux_ax3.scatter(tmp_ras,tmp_dists,marker='.',s=1,color='green',zorder=1)
     if withbounds is True:
         radius = 0.0033 # 10 h^-1 Mpc (in units of c/H_0)
         theta_0 = 85*(2*np.pi/360)
@@ -230,6 +249,9 @@ def plot_dec_slice(dec_min, dec_max, withclusters=False, withbounds=False, justg
                         aux_ax3.scatter(sdss_ra_trim[j], sdss_dist_trim[j],marker='.',s=1,color='black',zorder=1)
     if skipplot is False:
         plt.show()
+    else:
+        plt.clf() # flush plot
+        del fig
     return master_gal,master_cl
 
 def measure_angles(master_gal,master_cl):
@@ -326,7 +348,7 @@ def get_concs_and_masses(cl_list, method=None):
         #Select measurements based upon method
         #Coadd measurements
 
-def correlate_all_slices(dec_min=0,dec_max=66):
+def correlate_all_slices(dec_min=0,dec_max=66,plot_summary_slice=False):
     dec_step = 2 # in degrees
     dec_list = range(dec_min,dec_max,dec_step)
     out_mvir,out_mvir_p = ([],[])
@@ -338,9 +360,33 @@ def correlate_all_slices(dec_min=0,dec_max=66):
         tmp_dec_min = dec
         tmp_dec_max = dec+dec_step
         # (1)
-        master_gal,master_cl = plot_dec_slice(tmp_dec_min,tmp_dec_max,withclusters=True,withbounds=True,justgalsinside=True,skipplot=True)
+        master_gal,master_cl = plot_dec_slice(tmp_dec_min,tmp_dec_max,withclusters=True,
+                                              withbounds=True,justgalsinside=True,skipplot=True)
         # (2)
         alpha_list = measure_angles(master_gal,master_cl)
+        if plot_summary_slice is True:
+            for i in range(len(alpha_list)):
+                if len(alpha_list[i]) > 0:
+                    f, axarr = plt.subplots(3)
+                    axarr[0].set_title("Cluster: {},   RA: {},  ".format(master_cl[i][0][2],round(master_cl[i][0][0],2))+r"$\mathrm{\chi}$:"+" {} c/H0".format(round(master_cl[i][0][1],2)))
+                    axarr[0].hist(alpha_list[i])
+                    axarr[0].set_xlabel(r'$\mathrm{\theta}$')
+                    axarr[1].hist(np.cos(alpha_list[i]))
+                    axarr[1].set_xlabel(r'$\mathrm{\cos(\theta)}$')
+                    axarr[1].annotate('LOS', xy=(1, 1.05), xycoords='axes fraction', fontsize=16,
+                                      horizontalalignment='right', verticalalignment='bottom')
+                    axarr[1].annotate('PERP', xy=(0.09, 1.05), xycoords='axes fraction', fontsize=16,
+                                      horizontalalignment='right', verticalalignment='bottom')
+                    axarr[1].annotate(r'$\mathrm{\cos(\pi/4)}$', xy=(0.75, 0.965), xycoords='axes fraction', fontsize=16,
+                                      horizontalalignment='right', verticalalignment='bottom')
+                    axarr[1].axvline(x=0.707,linewidth=4,color='black',linestyle='--')
+                    axarr[2].hist(np.cos(alpha_list[i]),histtype='step',bins=50,normed=True,cumulative=True)
+                    axarr[2].set_xlabel(r'Cumulative $\mathrm{\cos(\theta)}$')
+                    axarr[2].text(0.025,0.875,'Total # Galaxies: {}'.format(len(alpha_list[i])))
+                    f.tight_layout()
+                    plt.show()
+                    # For plotting single cluster (need to zoom in manually)
+                    plot_dec_slice(tmp_dec_min,tmp_dec_max,withclusters=True,withbounds=True,justgalsinside=True,skipplot=False,specificcluster="{}".format(master_cl[i][0][2]))
         cl_thresh,aves_thresh,stds_thresh,med_thresh,mad_thresh,perc_thresh=process_alpha_list(alpha_list,master_gal,master_cl)
         # (3)
         coadd_p_mvir,coadd_p_mvir_p,coadd_p_y,coadd_p_y_p=get_concs_and_masses(cl_thresh)
@@ -365,43 +411,7 @@ def correlate_all_slices(dec_min=0,dec_max=66):
     out_perc_thresh = [item for sublist in out_perc_thresh for item in sublist]
     return out_mvir,out_mvir_p,out_y,out_y_p,out_aves_thresh,out_stds_thresh,out_med_thresh,out_mad_thresh,out_perc_thresh
 
-# /--- Preliminary Stuff ---/ #
-
-# Get all GR15 cluster data
-print("Loading cluster data from Groener & Goldberg (2015)...")
-clusters,redshift,methods,c200,c200_plus,c200_minus,m200,m200_plus,m200_minus,cvir,cvir_plus,cvir_minus,mvir,mvir_plus,mvir_minus,short_refs,orig_convention,cosmology,ra,dec = startup()        
-
-# Get normalized concs/masses
-print("Loading normalized cluster data (post-processed)...")
-pro_mvir,pro_mvir_p,pro_mvir_m,pro_cvir,pro_cvir_p,pro_cvir_m,pro_methods,pro_z,pro_cl,pro_refs = startup_processed()
-
-# Get sdss galaxy data
-print("Loading SDSS galaxy data...\n")
-sdss_z,sdss_ra,sdss_dec = startup_sdss()
-
-
-
-
-if __name__ == "__main__":
-    '''
-    # Procedure: (1) Select SDSS galaxies in slice; (2) measure angles; (3) correlate with cluster mass/conc measurements
-    dec_min = 10
-    dec_max = 12
-    # (1)
-    master_gal,master_cl = plot_dec_slice(dec_min,dec_max,withclusters=True,withbounds=True,justgalsinside=True)
-    # (2)
-    alpha_list = measure_angles(master_gal,master_cl)
-    cl_thresh,aves_thresh,stds_thresh,med_thresh,mad_thresh,perc_thresh=process_alpha_list(alpha_list)
-    # (3)
-    coadd_p_mvir,coadd_p_mvir_p,coadd_p_y,coadd_p_y_p=get_concs_and_masses(cl_thresh)
-    ipdb.set_trace()
-    '''
-    t0 = time.time()
-    out_mvir,out_mvir_p,out_y,out_y_p,out_aves_thresh,out_stds_thresh,out_med_thresh,out_mad_thresh,out_perc_thresh = correlate_all_slices()
-    t1 = time.time()
-    print("Total Time: {} seconds.".format(str(t1-t0)))
-
-    
+def do_plotting():
     # Do plotting and stats here
     f, axarr = plt.subplots(2, sharex=True)
     axarr[0].errorbar(out_perc_thresh,np.log10(out_mvir),yerr=np.log10(out_mvir_p),color='red',fmt='o')
@@ -444,6 +454,43 @@ if __name__ == "__main__":
     axarr[1].set_xlabel(r"$\mathrm{median(\alpha)}$",fontsize=18)
     axarr[1].text(1.2,1.7,"pearsonr: {}\np-value:   {}".format(round(pearsonr(out_med_thresh,np.log10(out_y))[0],3),round(pearsonr(out_med_thresh,np.log10(out_y))[1],3)))
     plt.show()
-    
-    
+
+
+# /--- Preliminary Stuff ---/ #
+
+# Get all GR15 cluster data
+print("Loading cluster data from Groener & Goldberg (2015)...")
+clusters,redshift,methods,c200,c200_plus,c200_minus,m200,m200_plus,m200_minus,cvir,cvir_plus,cvir_minus,mvir,mvir_plus,mvir_minus,short_refs,orig_convention,cosmology,ra,dec = startup()        
+
+# Get normalized concs/masses
+print("Loading normalized cluster data (post-processed)...")
+pro_mvir,pro_mvir_p,pro_mvir_m,pro_cvir,pro_cvir_p,pro_cvir_m,pro_methods,pro_z,pro_cl,pro_refs = startup_processed()
+
+# Get sdss galaxy data
+print("Loading SDSS galaxy data...\n")
+sdss_z,sdss_ra,sdss_dec = startup_sdss()
+
+
+
+
+if __name__ == "__main__":
+    '''
+    # Procedure: (1) Select SDSS galaxies in slice; (2) measure angles; (3) correlate with cluster mass/conc measurements
+    dec_min = 10
+    dec_max = 12
+    # (1)
+    master_gal,master_cl = plot_dec_slice(dec_min,dec_max,withclusters=True,withbounds=True,justgalsinside=True)
+    # (2)
+    alpha_list = measure_angles(master_gal,master_cl)
+    cl_thresh,aves_thresh,stds_thresh,med_thresh,mad_thresh,perc_thresh=process_alpha_list(alpha_list)
+    # (3)
+    coadd_p_mvir,coadd_p_mvir_p,coadd_p_y,coadd_p_y_p=get_concs_and_masses(cl_thresh)
     ipdb.set_trace()
+    '''
+    ipdb.set_trace()
+    t0 = time.time()
+    out_mvir,out_mvir_p,out_y,out_y_p,out_aves_thresh,out_stds_thresh,out_med_thresh,out_mad_thresh,out_perc_thresh = correlate_all_slices(plot_summary_slice=True)
+    t1 = time.time()
+    print("Total Time: {} seconds.".format(str(t1-t0)))
+    
+    #do_plotting()
