@@ -3,6 +3,7 @@ import numpy as np
 import math
 import matplotlib.pyplot as plt
 import matplotlib.path as mplPath
+from matplotlib import colors
 from astropy.io.ascii import read
 from scipy.integrate import quad
 from scipy.stats import pearsonr
@@ -280,26 +281,69 @@ def measure_angles(master_gal,master_cl):
 def mad(data, axis=None):
     return np.median(np.absolute(data - np.median(data, axis)), axis)
 
-def process_alpha_list(alpha_list, master_gal, master_cl, thresh=100):
+def process_alpha_list(alpha_list, master_gal, master_cl, thresh=100, stat = 'All'):
     gal_nums_per_cl = [len(master_gal[i]) for i in range(len(master_gal))]
     indices_thresh = [i for i in range(len(alpha_list)) if gal_nums_per_cl[i] >= thresh]
     alpha_list_thresh = [alpha_list[i] for i in indices_thresh]
     cl_thresh = [master_cl[i][0][-1] for i in indices_thresh]
+    print("  --> Found {} clusters with at least {} galaxies or more...".format(len(cl_thresh),thresh))
     ## Need to rethink using averages/standard deviations for measuring distribution of angles
-    # aves and stds
-    aves_thresh = [np.average(alpha_list_thresh[i]) for i in range(len(alpha_list_thresh))]
-    stds_thresh = [np.std(alpha_list_thresh[i]) for i in range(len(alpha_list_thresh))]
-    # meds and mads
-    med_thresh = [np.median(alpha_list_thresh[i]) for i in range(len(alpha_list_thresh))]
-    mad_thresh = [mad(alpha_list_thresh[i]) for i in range(len(alpha_list_thresh))]
-    # percentiles of gals with alpha <= np.pi/4
-    perc_thresh= [np.float(len([alpha_list_thresh[j][i] for i in range(len(alpha_list_thresh[j])) if alpha_list_thresh[j][i] <= np.cos(np.pi/4)]))/len(alpha_list_thresh[j]) for j in range(len(alpha_list_thresh))]
-    return cl_thresh,aves_thresh,stds_thresh,med_thresh,mad_thresh,perc_thresh 
+    if stat == 'All':
+        # aves and stds
+        aves_thresh = [np.average(alpha_list_thresh[i]) for i in range(len(alpha_list_thresh))]
+        stds_thresh = [np.std(alpha_list_thresh[i]) for i in range(len(alpha_list_thresh))]
+        # meds and mads
+        med_thresh = [np.median(alpha_list_thresh[i]) for i in range(len(alpha_list_thresh))]
+        mad_thresh = [mad(alpha_list_thresh[i]) for i in range(len(alpha_list_thresh))]
+        # percentiles of gals with alpha <= np.pi/4
+        perc_thresh= [np.float(len([alpha_list_thresh[j][i] for i in range(len(alpha_list_thresh[j])) if alpha_list_thresh[j][i] <= np.cos(np.pi/4)]))/len(alpha_list_thresh[j]) for j in range(len(alpha_list_thresh))]
+        # peaks of alpha distr.
+        peaks_thresh = []
+        for th in range(len(alpha_list)):
+            try:
+                tmp_nums,tmp_bins,tmp_patches = plt.hist(np.cos(alpha_list[th]),bins=10)
+                tmp_peak_index = np.where(tmp_nums == max(tmp_nums))[0][0]
+                tmp_peak_rad = np.average([tmp_bins[tmp_peak_index],tmp_bins[tmp_peak_index+1]])
+                peaks_thresh.append(tmp_peak_rad)
+            except ValueError:
+                peaks_thresh.append(np.nan)
+        return cl_thresh,aves_thresh,stds_thresh,med_thresh,mad_thresh,perc_thresh,peaks_thresh 
+    elif stat == 'Aves':
+        # aves and stds
+        aves_thresh = [np.average(alpha_list_thresh[i]) for i in range(len(alpha_list_thresh))]
+        stds_thresh = [np.std(alpha_list_thresh[i]) for i in range(len(alpha_list_thresh))]
+        return cl_thresh,aves_thresh,stds_thresh
+    elif stat == 'Meds':
+        # meds and mads
+        med_thresh = [np.median(alpha_list_thresh[i]) for i in range(len(alpha_list_thresh))]
+        mad_thresh = [mad(alpha_list_thresh[i]) for i in range(len(alpha_list_thresh))]
+        return cl_thresh,med_thresh,mad_thresh
+    elif stat == 'Percs':
+        # percentiles of gals with alpha <= np.pi/4
+        perc_thresh= [np.float(len([alpha_list_thresh[j][i] for i in range(len(alpha_list_thresh[j])) if alpha_list_thresh[j][i] <= np.cos(np.pi/4)]))/len(alpha_list_thresh[j]) for j in range(len(alpha_list_thresh))]
+        return cl_thresh,perc_thresh
+    elif stat == "Peak":
+        peaks_thresh = []
+        for th in range(len(alpha_list_thresh)):
+            try:
+                tmp_nums,tmp_bins,tmp_patches = plt.hist(np.cos(alpha_list_thresh[th]),bins=10)
+                tmp_peak_index = np.where(tmp_nums == max(tmp_nums))[0][0]
+                tmp_peak_rad = np.average([tmp_bins[tmp_peak_index],tmp_bins[tmp_peak_index+1]])
+                peaks_thresh.append(tmp_peak_rad)
+            except ValueError:
+                peaks_thresh.append(np.nan)
+        return cl_thresh,peaks_thresh
+    else:
+        print("Stat not implemented...")
+        return
+        
+    
 
 def get_concs_and_masses(cl_list, method=None):
     if method is None:
         pro_cl_list = pro_cl.data.tolist()
         #Get all measurements
+        #ipdb.set_trace()
         indices = [[i for i in range(len(pro_cl_list)) if cl_list[j] == pro_cl_list[i]] for j in range(len(cl_list))]
         p_mvir_list = pro_mvir.data.tolist()
         p_mvir = [[p_mvir_list[i] for i in indices[j]] for j in range(len(indices))]
@@ -348,12 +392,12 @@ def get_concs_and_masses(cl_list, method=None):
         #Select measurements based upon method
         #Coadd measurements
 
-def correlate_all_slices(dec_min=0,dec_max=66,plot_summary_slice=False):
+def correlate_all_slices(dec_min=0,dec_max=66,plot_summary_slice=False,stat='All'):
     dec_step = 2 # in degrees
     dec_list = range(dec_min,dec_max,dec_step)
     out_mvir,out_mvir_p = ([],[])
     out_y,out_y_p = ([],[])
-    out_aves_thresh,out_stds_thresh,out_med_thresh,out_mad_thresh,out_perc_thresh = ([],[],[],[],[])
+    out_aves_thresh,out_stds_thresh,out_med_thresh,out_mad_thresh,out_perc_thresh,out_peak_thresh = ([],[],[],[],[],[])
     for dec in dec_list:
         print("  Declination slice: {} to {}".format(dec,dec+dec_step))
         # Procedure: (1) Select SDSS galaxies in slice; (2) measure angles; (3) correlate with cluster mass/conc measurements
@@ -368,7 +412,8 @@ def correlate_all_slices(dec_min=0,dec_max=66,plot_summary_slice=False):
             for i in range(len(alpha_list)):
                 if len(alpha_list[i]) > 0:
                     f, axarr = plt.subplots(3)
-                    axarr[0].set_title("Cluster: {},   RA: {},  ".format(master_cl[i][0][2],round(master_cl[i][0][0],2))+r"$\mathrm{\chi}$:"+" {} c/H0".format(round(master_cl[i][0][1],2)))
+                    axarr[0].set_title("Cluster: {},   RA: {},  ".format(master_cl[i][0][2],
+                                                                         round(master_cl[i][0][0],2))+r"$\mathrm{\chi}$:"+" {} c/H0".format(round(master_cl[i][0][1],2)))
                     axarr[0].hist(alpha_list[i])
                     axarr[0].set_xlabel(r'$\mathrm{\theta}$')
                     axarr[1].hist(np.cos(alpha_list[i]))
@@ -386,74 +431,176 @@ def correlate_all_slices(dec_min=0,dec_max=66,plot_summary_slice=False):
                     f.tight_layout()
                     plt.show()
                     # For plotting single cluster (need to zoom in manually)
-                    plot_dec_slice(tmp_dec_min,tmp_dec_max,withclusters=True,withbounds=True,justgalsinside=True,skipplot=False,specificcluster="{}".format(master_cl[i][0][2]))
-        cl_thresh,aves_thresh,stds_thresh,med_thresh,mad_thresh,perc_thresh=process_alpha_list(alpha_list,master_gal,master_cl)
-        # (3)
-        coadd_p_mvir,coadd_p_mvir_p,coadd_p_y,coadd_p_y_p=get_concs_and_masses(cl_thresh)
-        out_mvir.append(coadd_p_mvir)
-        out_mvir_p.append(coadd_p_mvir_p)
-        out_y.append(coadd_p_y)
-        out_y_p.append(coadd_p_y_p)
-        out_aves_thresh.append(aves_thresh)
-        out_stds_thresh.append(stds_thresh)
-        out_med_thresh.append(med_thresh)
-        out_mad_thresh.append(mad_thresh)
-        out_perc_thresh.append(perc_thresh)
+                    #plot_dec_slice(tmp_dec_min,tmp_dec_max,withclusters=True,withbounds=True,justgalsinside=True,skipplot=False,specificcluster="{}".format(master_cl[i][0][2]))
+        if stat == 'All':
+            cl_thresh,aves_thresh,stds_thresh,med_thresh,mad_thresh,perc_thresh,peak_thresh=process_alpha_list(alpha_list,master_gal,master_cl,stat=stat)
+            # (3)
+            coadd_p_mvir,coadd_p_mvir_p,coadd_p_y,coadd_p_y_p=get_concs_and_masses(cl_thresh)
+            out_mvir.append(coadd_p_mvir)
+            out_mvir_p.append(coadd_p_mvir_p)
+            out_y.append(coadd_p_y)
+            out_y_p.append(coadd_p_y_p)
+            out_aves_thresh.append(aves_thresh)
+            out_stds_thresh.append(stds_thresh)
+            out_med_thresh.append(med_thresh)
+            out_mad_thresh.append(mad_thresh)
+            out_perc_thresh.append(perc_thresh)
+            out_peak_thresh.append(peaks_thresh)
+        elif stat == 'Aves':
+            cl_thresh,aves_thresh,stds_thresh=process_alpha_list(alpha_list,master_gal,master_cl,stat=stat)
+            # (3)
+            coadd_p_mvir,coadd_p_mvir_p,coadd_p_y,coadd_p_y_p=get_concs_and_masses(cl_thresh)
+            out_mvir.append(coadd_p_mvir)
+            out_mvir_p.append(coadd_p_mvir_p)
+            out_y.append(coadd_p_y)
+            out_y_p.append(coadd_p_y_p)
+            out_aves_thresh.append(aves_thresh)
+            out_stds_thresh.append(stds_thresh)
+        elif stat == 'Meds':
+            cl_thresh,med_thresh,mad_thresh=process_alpha_list(alpha_list,master_gal,master_cl,stat=stat)
+            # (3)
+            coadd_p_mvir,coadd_p_mvir_p,coadd_p_y,coadd_p_y_p=get_concs_and_masses(cl_thresh)
+            out_mvir.append(coadd_p_mvir)
+            out_mvir_p.append(coadd_p_mvir_p)
+            out_y.append(coadd_p_y)
+            out_y_p.append(coadd_p_y_p)
+            out_med_thresh.append(med_thresh)
+            out_mad_thresh.append(mad_thresh)
+        elif stat == 'Percs':
+            cl_thresh,perc_thresh=process_alpha_list(alpha_list,master_gal,master_cl,stat=stat)
+            # (3)
+            coadd_p_mvir,coadd_p_mvir_p,coadd_p_y,coadd_p_y_p=get_concs_and_masses(cl_thresh)
+            out_mvir.append(coadd_p_mvir)
+            out_mvir_p.append(coadd_p_mvir_p)
+            out_y.append(coadd_p_y)
+            out_y_p.append(coadd_p_y_p)
+            out_perc_thresh.append(perc_thresh)
+        elif stat == 'Peak':
+            cl_thresh,peaks_thresh=process_alpha_list(alpha_list,master_gal,master_cl,stat=stat)
+            # (3)
+            coadd_p_mvir,coadd_p_mvir_p,coadd_p_y,coadd_p_y_p=get_concs_and_masses(cl_thresh)
+            out_mvir.append(coadd_p_mvir)
+            out_mvir_p.append(coadd_p_mvir_p)
+            out_y.append(coadd_p_y)
+            out_y_p.append(coadd_p_y_p)
+            out_peak_thresh.append(peaks_thresh)
+        
     # Flatten data into a single list
     out_mvir = [item for sublist in out_mvir for item in sublist]
     out_mvir_p = [item for sublist in out_mvir_p for item in sublist]
     out_y = [item for sublist in out_y for item in sublist]
     out_y_p = [item for sublist in out_y_p for item in sublist]
-    out_aves_thresh = [item for sublist in out_aves_thresh for item in sublist]
-    out_stds_thresh = [item for sublist in out_stds_thresh for item in sublist]
-    out_med_thresh = [item for sublist in out_med_thresh for item in sublist]
-    out_mad_thresh = [item for sublist in out_mad_thresh for item in sublist]
-    out_perc_thresh = [item for sublist in out_perc_thresh for item in sublist]
-    return out_mvir,out_mvir_p,out_y,out_y_p,out_aves_thresh,out_stds_thresh,out_med_thresh,out_mad_thresh,out_perc_thresh
+    if stat == 'All':
+        out_aves_thresh = [item for sublist in out_aves_thresh for item in sublist]
+        out_stds_thresh = [item for sublist in out_stds_thresh for item in sublist]
+        out_med_thresh = [item for sublist in out_med_thresh for item in sublist]
+        out_mad_thresh = [item for sublist in out_mad_thresh for item in sublist]
+        out_perc_thresh = [item for sublist in out_perc_thresh for item in sublist]
+        out_peak_thresh = [item for sublist in out_peak_thresh for item in sublist]
+        return out_mvir,out_mvir_p,out_y,out_y_p,out_aves_thresh,out_stds_thresh,out_med_thresh,out_mad_thresh,out_perc_thresh,out_peak_thresh
+    elif stat == 'Aves':
+        out_aves_thresh = [item for sublist in out_aves_thresh for item in sublist]
+        out_stds_thresh = [item for sublist in out_stds_thresh for item in sublist]
+        return out_mvir,out_mvir_p,out_y,out_y_p,out_aves_thresh,out_stds_thresh
+    elif stat == 'Meds':
+        out_med_thresh = [item for sublist in out_med_thresh for item in sublist]
+        out_mad_thresh = [item for sublist in out_mad_thresh for item in sublist]
+        return out_mvir,out_mvir_p,out_y,out_y_p,out_med_thresh,out_mad_thresh
+    elif stat == 'Percs':
+        out_perc_thresh = [item for sublist in out_perc_thresh for item in sublist]
+        return out_mvir,out_mvir_p,out_y,out_y_p,out_perc_thresh
+    elif stat == 'Peak':
+        out_peak_thresh = [item for sublist in out_peak_thresh for item in sublist]
+        ipdb.set_trace()
+        return out_mvir,out_mvir_p,out_y,out_y_p,out_peak_thresh
+        
+    
 
-def do_plotting():
+def do_plotting(out_mvir,out_mvir_p,out_y,out_y_p,stat='Peak',
+                out_aves_thresh=None,out_stds_thresh=None,
+                out_med_thresh=None,out_mad_thresh=None,
+                out_perc_thresh=None,out_peak_thresh=None):
+
     # Do plotting and stats here
     f, axarr = plt.subplots(2, sharex=True)
-    axarr[0].errorbar(out_perc_thresh,np.log10(out_mvir),yerr=np.log10(out_mvir_p),color='red',fmt='o')
-    axarr[0].set_ylabel(r"$\mathrm{\log_{10} \, M_{vir}/10^{14} M_{\odot}}$",fontsize=18)
-    axarr[0].set_ylim(-0.1,2) #be careful about chopping data points
-    axarr[0].set_xlim(0,1)
-    axarr[0].text(0.1,1.7,"pearsonr: {}\np-value:   {}".format(round(pearsonr(out_perc_thresh,out_mvir)[0],3),round(pearsonr(out_perc_thresh,out_mvir)[1],3)))
-    axarr[1].errorbar(out_perc_thresh,np.log10(out_y),yerr=np.log10(out_y_p),color='blue',fmt='o')
-    axarr[1].set_ylabel(r"$\mathrm{log_{10}\, c_{vir} \, (1+z)}$",fontsize=18)
-    axarr[1].set_ylim(-0.1,2) #be careful about chopping data points
-    axarr[1].set_xlim(0,1)
-    axarr[1].set_xlabel(r"$\mathrm{\frac{N(\alpha < \pi/4)}{N_{tot}}}$",fontsize=18)
-    axarr[1].text(0.1,1.5,"pearsonr: {}\np-value:   {}".format(round(pearsonr(out_perc_thresh,np.log10(out_y))[0],3),round(pearsonr(out_perc_thresh,np.log10(out_y))[1],3)))
-    plt.show()
-   
-    f, axarr = plt.subplots(2, sharex=True)
-    axarr[0].errorbar(out_aves_thresh,np.log10(out_mvir),yerr=np.log10(out_mvir_p),color='red',fmt='o')
-    axarr[0].set_ylabel(r"$\mathrm{\log_{10} \, M_{vir}/10^{14} M_{\odot}}$",fontsize=18)
-    axarr[0].set_ylim(-0.1,2) #be careful about chopping data points
-    axarr[0].set_xlim(0,np.pi/2)
-    axarr[0].text(0.1,1.7,"pearsonr: {}\np-value:   {}".format(round(pearsonr(out_aves_thresh,out_mvir)[0],3),round(pearsonr(out_aves_thresh,out_mvir)[1],3)))
-    axarr[1].errorbar(out_aves_thresh,np.log10(out_y),yerr=np.log10(out_y_p),color='blue',fmt='o')
-    axarr[1].set_ylabel(r"$\mathrm{log_{10}\, c_{vir} \, (1+z)}$",fontsize=18)
-    axarr[1].set_ylim(-0.1,2) #be careful about chopping data points
-    axarr[1].set_xlim(0,np.pi/2)
-    axarr[1].set_xlabel(r"$\mathrm{\langle \alpha \rangle}$",fontsize=18)
-    axarr[1].text(0.1,1.5,"pearsonr: {}\np-value:   {}".format(round(pearsonr(out_aves_thresh,np.log10(out_y))[0],3),round(pearsonr(out_aves_thresh,np.log10(out_y))[1],3)))
-    plt.show()
 
-    f, axarr = plt.subplots(2, sharex=True)
-    axarr[0].errorbar(out_med_thresh,np.log10(out_mvir),yerr=np.log10(out_mvir_p),color='red',fmt='o')
-    axarr[0].set_ylabel(r"$\mathrm{\log_{10} \, M_{vir}/10^{14} M_{\odot}}$",fontsize=18)
-    axarr[0].set_ylim(-0.1,2) #be careful about chopping data points
-    axarr[0].set_xlim(0,np.pi/2)
-    axarr[0].text(1.2,1.7,"pearsonr: {}\np-value:   {}".format(round(pearsonr(out_med_thresh,out_mvir)[0],3),round(pearsonr(out_med_thresh,out_mvir)[1],3)))
-    axarr[1].errorbar(out_med_thresh,np.log10(out_y),yerr=np.log10(out_y_p),color='blue',fmt='o')
-    axarr[1].set_ylabel(r"$\mathrm{log_{10}\, c_{vir} \, (1+z)}$",fontsize=18)
-    axarr[1].set_ylim(-0.1,2) #be careful about chopping data points
-    axarr[1].set_xlim(0,np.pi/2)
-    axarr[1].set_xlabel(r"$\mathrm{median(\alpha)}$",fontsize=18)
-    axarr[1].text(1.2,1.7,"pearsonr: {}\np-value:   {}".format(round(pearsonr(out_med_thresh,np.log10(out_y))[0],3),round(pearsonr(out_med_thresh,np.log10(out_y))[1],3)))
+    if stat == 'Aves':
+        assert out_aves_thresh is not None, "No average data provided..."
+        axarr[0].errorbar(out_aves_thresh,np.log10(out_mvir),yerr=np.log10(out_mvir_p),color='red',fmt='o')
+        axarr[0].set_ylabel(r"$\mathrm{\log_{10} \, M_{vir}/10^{14} M_{\odot}}$",fontsize=18)
+        axarr[0].set_ylim(-0.1,2) #be careful about chopping data points
+        axarr[0].set_xlim(0,np.pi/2)
+        axarr[0].text(0.1,1.7,"pearsonr: {}\np-value:   {}".format(round(pearsonr(out_aves_thresh,out_mvir)[0],3),round(pearsonr(out_aves_thresh,out_mvir)[1],3)))
+        axarr[1].errorbar(out_aves_thresh,np.log10(out_y),yerr=np.log10(out_y_p),color='blue',fmt='o')
+        axarr[1].set_ylabel(r"$\mathrm{log_{10}\, c_{vir} \, (1+z)}$",fontsize=18)
+        axarr[1].set_ylim(-0.1,2) #be careful about chopping data points
+        axarr[1].set_xlim(0,np.pi/2)
+        axarr[1].set_xlabel(r"$\mathrm{\langle \alpha \rangle}$",fontsize=18)
+        axarr[1].text(0.1,1.5,"pearsonr: {}\np-value:   {}".format(round(pearsonr(out_aves_thresh,np.log10(out_y))[0],3),round(pearsonr(out_aves_thresh,np.log10(out_y))[1],3)))
+        plt.show()
+    elif stat == 'Meds':
+        assert out_med_thresh is not None, "No median data provided..."
+        axarr[0].errorbar(out_med_thresh,np.log10(out_mvir),yerr=np.log10(out_mvir_p),color='red',fmt='o')
+        axarr[0].set_ylabel(r"$\mathrm{\log_{10} \, M_{vir}/10^{14} M_{\odot}}$",fontsize=18)
+        axarr[0].set_ylim(-0.1,2) #be careful about chopping data points
+        axarr[0].set_xlim(0,np.pi/2)
+        axarr[0].text(1.2,1.7,"pearsonr: {}\np-value:   {}".format(round(pearsonr(out_med_thresh,out_mvir)[0],3),round(pearsonr(out_med_thresh,out_mvir)[1],3)))
+        axarr[1].errorbar(out_med_thresh,np.log10(out_y),yerr=np.log10(out_y_p),color='blue',fmt='o')
+        axarr[1].set_ylabel(r"$\mathrm{log_{10}\, c_{vir} \, (1+z)}$",fontsize=18)
+        axarr[1].set_ylim(-0.1,2) #be careful about chopping data points
+        axarr[1].set_xlim(0,np.pi/2)
+        axarr[1].set_xlabel(r"$\mathrm{median(\alpha)}$",fontsize=18)
+        axarr[1].text(1.2,1.7,"pearsonr: {}\np-value:   {}".format(round(pearsonr(out_med_thresh,np.log10(out_y))[0],3),round(pearsonr(out_med_thresh,np.log10(out_y))[1],3)))
+        plt.show()
+    elif stat == 'Percs':
+        assert out_perc_thresh is not None, "No percentage data provided..."
+        axarr[0].errorbar(out_perc_thresh,np.log10(out_mvir),yerr=np.log10(out_mvir_p),color='red',fmt='o')
+        axarr[0].set_ylabel(r"$\mathrm{\log_{10} \, M_{vir}/10^{14} M_{\odot}}$",fontsize=18)
+        axarr[0].set_ylim(-0.1,2) #be careful about chopping data points
+        axarr[0].set_xlim(0,1)
+        axarr[0].text(0.1,1.7,"pearsonr: {}\np-value:   {}".format(round(pearsonr(out_perc_thresh,out_mvir)[0],3),round(pearsonr(out_perc_thresh,out_mvir)[1],3)))
+        axarr[1].errorbar(out_perc_thresh,np.log10(out_y),yerr=np.log10(out_y_p),color='blue',fmt='o')
+        axarr[1].set_ylabel(r"$\mathrm{log_{10}\, c_{vir} \, (1+z)}$",fontsize=18)
+        axarr[1].set_ylim(-0.1,2) #be careful about chopping data points
+        axarr[1].set_xlim(0,1)
+        axarr[1].set_xlabel(r"$\mathrm{\frac{N(\alpha < \pi/4)}{N_{tot}}}$",fontsize=18)
+        axarr[1].text(0.1,1.5,"pearsonr: {}\np-value:   {}".format(round(pearsonr(out_perc_thresh,np.log10(out_y))[0],3),round(pearsonr(out_perc_thresh,np.log10(out_y))[1],3)))
+        plt.show()
+    elif stat == 'Peak':
+        assert out_peak_thresh is not None, "No peak data provided..."
+        for i in range(len(out_peak_thresh)):
+            if np.isnan(out_peak_thresh[i]) is False:
+                axarr[0].errorbar(out_peak_thresh[i],np.log10(out_mvir[i]),yerr=np.log10(out_mvir_p[i]),color='red',fmt='o')
+            if i == 0:
+                axarr[0].set_ylabel(r"$\mathrm{\log_{10} \, M_{vir}/10^{14} M_{\odot}}$",fontsize=18)
+                axarr[0].set_ylim(-0.1,2) #be careful about chopping data points
+                axarr[0].set_xlim(0,1)
+                axarr[0].text(0.1,1.7,"pearsonr: {}\np-value:   {}".format(round(pearsonr(out_peak_thresh,out_mvir)[0],3),round(pearsonr(out_peak_thresh,out_mvir)[1],3)))
+            if np.isnan(out_peak_thresh[i]) is False:
+                axarr[1].errorbar(out_peak_thresh[i],np.log10(out_y[i]),yerr=np.log10(out_y_p[i]),color='blue',fmt='o')
+            if i == 0:
+                axarr[1].set_ylabel(r"$\mathrm{log_{10}\, c_{vir} \, (1+z)}$",fontsize=18)
+                axarr[1].set_ylim(-0.1,2) #be careful about chopping data points
+                axarr[1].set_xlim(0,1)
+                axarr[1].set_xlabel(r"$\mathrm{Peak\,(\cos(\alpha))}$",fontsize=18)
+                axarr[1].text(0.1,1.5,"pearsonr: {}\np-value:   {}".format(round(pearsonr(out_peak_thresh,np.log10(out_y))[0],3),round(pearsonr(out_peak_thresh,np.log10(out_y))[1],3)))
+        plt.show()
+
+def plot_all_sdss():
+    fig = plt.gca()
+    plt.scatter(sdss_ra,sdss_dec,marker='.',s=1,color='magenta', zorder=1)
+    plt.ylim(-20,80)
+    plt.xlim(50,300)
+    plt.xlabel(r"RA (deg.)",fontsize=18)
+    plt.ylabel(r"Dec. (deg.)",fontsize=18)
+    plt.grid(b=True, which='major', color='black', linestyle='-', zorder=2)
+    plt.grid(b=True, which='minor', color='black', linestyle='-', zorder=2)
+    circle = plt.Circle(xy=(75,0),radius=0.5,color='black', alpha=0.5,hatch='/')
+    fig.add_artist(circle)
+    plt.text(60,-15,"Size of the\nfull moon")
+    plt.axes().set_aspect('equal')#, 'datalim')
     plt.show()
+    return
 
 
 # /--- Preliminary Stuff ---/ #
@@ -470,27 +617,11 @@ pro_mvir,pro_mvir_p,pro_mvir_m,pro_cvir,pro_cvir_p,pro_cvir_m,pro_methods,pro_z,
 print("Loading SDSS galaxy data...\n")
 sdss_z,sdss_ra,sdss_dec = startup_sdss()
 
-
-
+# Plot RA/Dec. of all data here
+#plot_all_sdss()
 
 if __name__ == "__main__":
-    '''
-    # Procedure: (1) Select SDSS galaxies in slice; (2) measure angles; (3) correlate with cluster mass/conc measurements
-    dec_min = 10
-    dec_max = 12
-    # (1)
-    master_gal,master_cl = plot_dec_slice(dec_min,dec_max,withclusters=True,withbounds=True,justgalsinside=True)
-    # (2)
-    alpha_list = measure_angles(master_gal,master_cl)
-    cl_thresh,aves_thresh,stds_thresh,med_thresh,mad_thresh,perc_thresh=process_alpha_list(alpha_list)
-    # (3)
-    coadd_p_mvir,coadd_p_mvir_p,coadd_p_y,coadd_p_y_p=get_concs_and_masses(cl_thresh)
+
+    out_mvir,out_mvir_p,out_y,out_y_p,out_peak_thresh = correlate_all_slices(plot_summary_slice=False,stat='Peak')
     ipdb.set_trace()
-    '''
-    ipdb.set_trace()
-    t0 = time.time()
-    out_mvir,out_mvir_p,out_y,out_y_p,out_aves_thresh,out_stds_thresh,out_med_thresh,out_mad_thresh,out_perc_thresh = correlate_all_slices(plot_summary_slice=True)
-    t1 = time.time()
-    print("Total Time: {} seconds.".format(str(t1-t0)))
-    
-    #do_plotting()
+    do_plotting(out_mvir=out_mvir,out_mvir_p=out_mvir_p,out_y=out_y,out_y_p=out_y_p,out_peak_thresh=out_peak_thresh,stat='Peak')
