@@ -9,6 +9,7 @@ from scipy.integrate import quad
 from scipy.stats import pearsonr
 import socket
 import time
+from numpy.polynomial.legendre import legfit,legval
 
 # Special slice plotting
 from demo_floating_axes import setup_axes3
@@ -242,7 +243,6 @@ def plot_dec_slice(dec_min, dec_max, withclusters=False, withbounds=False, justg
             master_cl[i].append([gr15_ra_trim[i], gr15_dist_trim[i], gr15_cl_trim[i]])
             for j in range(len(sdss_ra_trim)):
                 tmp_ra_rads = gr15_ra_trim[i] * (2*np.pi)/360.
-                #ipdb.set_trace()
                 #if circle_list[i].contains_point((-1*gr15_dist_trim[i]*np.cos(tmp_ra_rads+theta_0),-1*gr15_dist_trim[i]*np.sin(tmp_ra_rads+theta_0))):
                 if sdss_dist_trim[j] <= gr15_dist_trim[i] + radius and sdss_dist_trim[j] >= gr15_dist_trim[i] - radius:
                     if sdss_ra_trim[j] <= gr15_ra_trim[i] + (radius*(1+gr15_z_trim[i])/ComovingDistance(gr15_z_trim[i]))*(360/(2*np.pi)) and sdss_ra_trim[j] >= gr15_ra_trim[i] - (radius*(1+gr15_z_trim[i])/ComovingDistance(gr15_z_trim[i]))*(360/(2*np.pi)):
@@ -333,6 +333,14 @@ def process_alpha_list(alpha_list, master_gal, master_cl, thresh=100, stat = 'Al
             except ValueError:
                 peaks_thresh.append(np.nan)
         return cl_thresh,peaks_thresh
+    elif stat == 'Legendre':
+        legvals_thresh = []
+        for i in range(len(alpha_list_thresh)):
+            nums,bins,patches = plt.hist(np.cos(alpha_list_thresh[i]),bins=10)
+            bins_centers = [np.average([bins[i],bins[i+1]]) for i in range(len(bins)-1)]
+            coeffs = legfit(bins_centers,nums,5)
+            legvals_thresh.append(coeffs)
+        return cl_thresh,legvals_thresh
     else:
         print("Stat not implemented...")
         return
@@ -343,7 +351,6 @@ def get_concs_and_masses(cl_list, method=None):
     if method is None:
         pro_cl_list = pro_cl.data.tolist()
         #Get all measurements
-        #ipdb.set_trace()
         indices = [[i for i in range(len(pro_cl_list)) if cl_list[j] == pro_cl_list[i]] for j in range(len(cl_list))]
         p_mvir_list = pro_mvir.data.tolist()
         p_mvir = [[p_mvir_list[i] for i in indices[j]] for j in range(len(indices))]
@@ -355,6 +362,7 @@ def get_concs_and_masses(cl_list, method=None):
         p_cvir_p = [[p_cvir_p_list[i] for i in indices[j]] for j in range(len(indices))]
         p_z_list = pro_z.data.tolist()
         p_z = [[p_z_list[i] for i in indices[j]] for j in range(len(indices))]
+        ipdb.set_trace()
         #Coadd measurements
         coadd_p_mvir = []
         coadd_p_mvir_p = []
@@ -392,12 +400,12 @@ def get_concs_and_masses(cl_list, method=None):
         #Select measurements based upon method
         #Coadd measurements
 
-def correlate_all_slices(dec_min=0,dec_max=66,plot_summary_slice=False,stat='All'):
+def correlate_all_slices(dec_min=0,dec_max=66,plot_summary_slice=False,stat='All',method=None):
     dec_step = 2 # in degrees
     dec_list = range(dec_min,dec_max,dec_step)
     out_mvir,out_mvir_p = ([],[])
     out_y,out_y_p = ([],[])
-    out_aves_thresh,out_stds_thresh,out_med_thresh,out_mad_thresh,out_perc_thresh,out_peak_thresh = ([],[],[],[],[],[])
+    out_aves_thresh,out_stds_thresh,out_med_thresh,out_mad_thresh,out_perc_thresh,out_peak_thresh,out_legvals_thresh = ([],[],[],[],[],[],[])
     for dec in dec_list:
         print("  Declination slice: {} to {}".format(dec,dec+dec_step))
         # Procedure: (1) Select SDSS galaxies in slice; (2) measure angles; (3) correlate with cluster mass/conc measurements
@@ -484,6 +492,28 @@ def correlate_all_slices(dec_min=0,dec_max=66,plot_summary_slice=False,stat='All
             out_y.append(coadd_p_y)
             out_y_p.append(coadd_p_y_p)
             out_peak_thresh.append(peaks_thresh)
+        elif stat == 'Legendre':
+            cl_thresh,legvals_thresh=process_alpha_list(alpha_list,master_gal,master_cl,stat=stat)
+            # (3)
+            coadd_p_mvir,coadd_p_mvir_p,coadd_p_y,coadd_p_y_p=get_concs_and_masses(cl_thresh)
+            out_mvir.append(coadd_p_mvir)
+            out_mvir_p.append(coadd_p_mvir_p)
+            out_y.append(coadd_p_y)
+            out_y_p.append(coadd_p_y_p)
+            out_legvals_thresh.append(legvals_thresh)
+            '''
+            for i in range(len(alpha_list)):
+                try:
+                    print(len(alpha_list[i]))
+                    nums,bins,patches = plt.hist(np.cos(alpha_list[i]),bins=10)
+                    bins_centers = [np.average([bins[i],bins[i+1]]) for i in range(len(bins)-1)]
+                    coeffs = legfit(bins_centers,nums,5)
+                    test = legval(bins_centers,coeffs)
+                    plt.plot(bins_centers,test)
+                    plt.show()
+                except ValueError:
+                    continue
+            '''
         
     # Flatten data into a single list
     out_mvir = [item for sublist in out_mvir for item in sublist]
@@ -511,15 +541,17 @@ def correlate_all_slices(dec_min=0,dec_max=66,plot_summary_slice=False,stat='All
         return out_mvir,out_mvir_p,out_y,out_y_p,out_perc_thresh
     elif stat == 'Peak':
         out_peak_thresh = [item for sublist in out_peak_thresh for item in sublist]
-        ipdb.set_trace()
         return out_mvir,out_mvir_p,out_y,out_y_p,out_peak_thresh
-        
+    elif stat == 'Legendre':
+        out_legvals_thresh = [item for sublist in out_legvals_thresh for item in sublist]
+        return out_mvir,out_mvir_p,out_y,out_y_p,out_legvals_thresh
     
 
 def do_plotting(out_mvir,out_mvir_p,out_y,out_y_p,stat='Peak',
                 out_aves_thresh=None,out_stds_thresh=None,
                 out_med_thresh=None,out_mad_thresh=None,
-                out_perc_thresh=None,out_peak_thresh=None):
+                out_perc_thresh=None,out_peak_thresh=None,
+                out_legvals_thresh=None):
 
     # Do plotting and stats here
     f, axarr = plt.subplots(2, sharex=True)
@@ -568,6 +600,7 @@ def do_plotting(out_mvir,out_mvir_p,out_y,out_y_p,stat='Peak',
         plt.show()
     elif stat == 'Peak':
         assert out_peak_thresh is not None, "No peak data provided..."
+        # Masses may not be correct (look at legendre section first)
         for i in range(len(out_peak_thresh)):
             if np.isnan(out_peak_thresh[i]) is False:
                 axarr[0].errorbar(out_peak_thresh[i],np.log10(out_mvir[i]),yerr=np.log10(out_mvir_p[i]),color='red',fmt='o')
@@ -585,6 +618,111 @@ def do_plotting(out_mvir,out_mvir_p,out_y,out_y_p,stat='Peak',
                 axarr[1].set_xlabel(r"$\mathrm{Peak\,(\cos(\alpha))}$",fontsize=18)
                 axarr[1].text(0.1,1.5,"pearsonr: {}\np-value:   {}".format(round(pearsonr(out_peak_thresh,np.log10(out_y))[0],3),round(pearsonr(out_peak_thresh,np.log10(out_y))[1],3)))
         plt.show()
+    elif stat == 'Legendre':
+        assert out_legvals_thresh is not None, "No legendre-fourier coefficients provided..."
+        out_mvir = [np.log10(out_mvir[i]*1.e14) for i in range(len(out_mvir))]
+        out_y = [np.log10(out_y[i]) for i in range(len(out_y))]
+        c0 = [out_legvals_thresh[i][0] for i in range(len(out_legvals_thresh))]
+        c1 = [out_legvals_thresh[i][1] for i in range(len(out_legvals_thresh))]
+        c2 = [out_legvals_thresh[i][2] for i in range(len(out_legvals_thresh))]
+        c3 = [out_legvals_thresh[i][3] for i in range(len(out_legvals_thresh))]
+        c4 = [out_legvals_thresh[i][4] for i in range(len(out_legvals_thresh))]
+        c5 = [out_legvals_thresh[i][5] for i in range(len(out_legvals_thresh))]
+        c6 = [out_legvals_thresh[i][6] for i in range(len(out_legvals_thresh))]
+        ### Make plots
+        # MASSES 
+        f, axarr = plt.subplots(2, 3)
+        # Mass vs. c0
+        axarr[0,0].scatter(out_mvir,c0,color='black',s=4)
+        axarr[0,0].set_xticks([13,14,15,16])
+        axarr[0,0].set_xlabel(r"$\mathrm{\log\, M_{vir}/M_{\odot}}$",fontsize=17)
+        axarr[0,0].set_ylabel(r"$\mathrm{c_{0}}$",fontsize=17,rotation='horizontal')
+        rval0,pval0 = pearsonr(out_mvir,c0)
+        axarr[0,0].set_title("Pearson's r: {}\np-value: {}".format(round(rval0,3),round(pval0,3)))
+        # Mass vs. c1
+        axarr[0,1].scatter(out_mvir,c1,color='black',s=4)
+        axarr[0,1].set_xticks([13,14,15,16])
+        axarr[0,1].set_xlabel(r"$\mathrm{\log\, M_{vir}/M_{\odot}}$",fontsize=17)
+        axarr[0,1].set_ylabel(r"$\mathrm{c_{1}}$",fontsize=17,rotation='horizontal')
+        rval1,pval1 = pearsonr(out_mvir,c1)
+        axarr[0,1].set_title("Pearson's r: {}\np-value: {}".format(round(rval1,3),round(pval1,3)))
+        # Mass vs. c2
+        axarr[0,2].scatter(out_mvir,c2,color='black',s=4)
+        axarr[0,2].set_xticks([13,14,15,16])
+        axarr[0,2].set_xlabel(r"$\mathrm{\log\, M_{vir}/M_{\odot}}$",fontsize=17)
+        axarr[0,2].set_ylabel(r"$\mathrm{c_{2}}$",fontsize=17,rotation='horizontal')
+        rval2,pval2 = pearsonr(out_mvir,c2)
+        axarr[0,2].set_title("Pearson's r: {}\np-value: {}".format(round(rval2,3),round(pval2,3)))
+        # Mass vs. c3
+        axarr[1,0].scatter(out_mvir,c3,color='black',s=4)
+        axarr[1,0].set_xticks([13,14,15,16])
+        axarr[1,0].set_xlabel(r"$\mathrm{\log\, M_{vir}/M_{\odot}}$",fontsize=17)
+        axarr[1,0].set_ylabel(r"$\mathrm{c_{3}}$",fontsize=17,rotation='horizontal')
+        rval3,pval3 = pearsonr(out_mvir,c3)
+        axarr[1,0].set_title("Pearson's r: {}\np-value: {}".format(round(rval3,3),round(pval3,3)))
+        # Mass vs. c4
+        axarr[1,1].scatter(out_mvir,c4,color='black',s=4)
+        axarr[1,1].set_xticks([13,14,15,16])
+        axarr[1,1].set_xlabel(r"$\mathrm{\log\, M_{vir}/M_{\odot}}$",fontsize=17)
+        axarr[1,1].set_ylabel(r"$\mathrm{c_{4}}$",fontsize=17,rotation='horizontal')
+        rval4,pval4 = pearsonr(out_mvir,c4)
+        axarr[1,1].set_title("Pearson's r: {}\np-value: {}".format(round(rval4,3),round(pval4,3)))
+        # Mass vs. c5
+        axarr[1,2].scatter(out_mvir,c5,color='black',s=4)
+        axarr[1,2].set_xticks([13,14,15,16])
+        axarr[1,2].set_xlabel(r"$\mathrm{\log\, M_{vir}/M_{\odot}}$",fontsize=17)
+        axarr[1,2].set_ylabel(r"$\mathrm{c_{5}}$",fontsize=17,rotation='horizontal')
+        rval5,pval5 = pearsonr(out_mvir,c5)
+        axarr[1,2].set_title("Pearson's r: {}\np-value: {}".format(round(rval5,3),round(pval5,3)))
+        plt.tight_layout()
+        plt.show()
+        # CONCS * (1 + Z)
+        f, axarr = plt.subplots(2, 3)
+        # Conc*(1+z) vs. c0
+        axarr[0,0].scatter(out_y,c0,color='black',s=4)
+        axarr[0,0].set_xticks([0,1,2])
+        axarr[0,0].set_xlabel(r"$\mathrm{\log\, c_{vir}(1+z) }$",fontsize=17)
+        axarr[0,0].set_ylabel(r"$\mathrm{c_{0}}$",fontsize=17,rotation='horizontal')
+        rval0,pval0 = pearsonr(out_y,c0)
+        axarr[0,0].set_title("Pearson's r: {}\np-value: {}".format(round(rval0,3),round(pval0,3)))
+        # Conc*(1+z) vs. c1
+        axarr[0,1].scatter(out_y,c1,color='black',s=4)
+        axarr[0,1].set_xticks([0,1,2])
+        axarr[0,1].set_xlabel(r"$\mathrm{\log\, c_{vir}(1+z) }$",fontsize=17)
+        axarr[0,1].set_ylabel(r"$\mathrm{c_{1}}$",fontsize=17,rotation='horizontal')
+        rval1,pval1 = pearsonr(out_y,c1)
+        axarr[0,1].set_title("Pearson's r: {}\np-value: {}".format(round(rval1,3),round(pval1,3)))
+        # Conc*(1+z) vs. c2
+        axarr[0,2].scatter(out_y,c2,color='black',s=4)
+        axarr[0,2].set_xticks([0,1,2])
+        axarr[0,2].set_xlabel(r"$\mathrm{\log\, c_{vir}(1+z) }$",fontsize=17)
+        axarr[0,2].set_ylabel(r"$\mathrm{c_{2}}$",fontsize=17,rotation='horizontal')
+        rval2,pval2 = pearsonr(out_y,c2)
+        axarr[0,2].set_title("Pearson's r: {}\np-value: {}".format(round(rval2,3),round(pval2,3)))
+        # Conc*(1+z) vs. c3
+        axarr[1,0].scatter(out_y,c3,color='black',s=4)
+        axarr[1,0].set_xticks([0,1,2])
+        axarr[1,0].set_xlabel(r"$\mathrm{\log\, c_{vir}(1+z) }$",fontsize=17)
+        axarr[1,0].set_ylabel(r"$\mathrm{c_{3}}$",fontsize=17,rotation='horizontal')
+        rval3,pval3 = pearsonr(out_y,c3)
+        axarr[1,0].set_title("Pearson's r: {}\np-value: {}".format(round(rval3,3),round(pval3,3)))
+        # Conc*(1+z) vs. c4
+        axarr[1,1].scatter(out_y,c4,color='black',s=4)
+        axarr[1,1].set_xticks([0,1,2])
+        axarr[1,1].set_xlabel(r"$\mathrm{\log\, c_{vir}(1+z) }$",fontsize=17)
+        axarr[1,1].set_ylabel(r"$\mathrm{c_{4}}$",fontsize=17,rotation='horizontal')
+        rval4,pval4 = pearsonr(out_y,c4)
+        axarr[1,1].set_title("Pearson's r: {}\np-value: {}".format(round(rval4,3),round(pval4,3)))
+        # Conc*(1+z) vs. c5
+        axarr[1,2].scatter(out_y,c5,color='black',s=4)
+        axarr[1,2].set_xticks([0,1,2])
+        axarr[1,2].set_xlabel(r"$\mathrm{\log\, c_{vir}(1+z) }$",fontsize=17)
+        axarr[1,2].set_ylabel(r"$\mathrm{c_{5}}$",fontsize=17,rotation='horizontal')
+        rval5,pval5 = pearsonr(out_y,c5)
+        axarr[1,2].set_title("Pearson's r: {}\np-value: {}".format(round(rval5,3),round(pval5,3)))
+        plt.tight_layout()
+        plt.show()
+
 
 def plot_all_sdss():
     fig = plt.gca()
@@ -622,6 +760,8 @@ sdss_z,sdss_ra,sdss_dec = startup_sdss()
 
 if __name__ == "__main__":
 
-    out_mvir,out_mvir_p,out_y,out_y_p,out_peak_thresh = correlate_all_slices(plot_summary_slice=False,stat='Peak')
-    ipdb.set_trace()
-    do_plotting(out_mvir=out_mvir,out_mvir_p=out_mvir_p,out_y=out_y,out_y_p=out_y_p,out_peak_thresh=out_peak_thresh,stat='Peak')
+    # All methods
+    out_mvir,out_mvir_p,out_y,out_y_p,out_legvals_thresh = correlate_all_slices(plot_summary_slice=False,stat='Legendre')
+    do_plotting(out_mvir=out_mvir, out_mvir_p=out_mvir_p,
+                out_y=out_y, out_y_p=out_y_p,
+                out_legvals_thresh=out_legvals_thresh, stat='Legendre')
