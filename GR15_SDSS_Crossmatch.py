@@ -55,6 +55,8 @@ def ComovingDistance(z,Omega_M=0.3,Omega_L=0.7,inunitsof='hubbledist'):
     I = quad(lambda Z: 1/(np.sqrt(Omega_M*((1+Z)**3) + Omega_L)),0,z)
     if inunitsof == 'hubbledist':
         return I[0]
+    elif inunitsof == 'hinvMpc':
+        return I[0]*3000
     else:
         return I[0]*dH
     
@@ -158,6 +160,115 @@ def startup_sdss():
     sdss_ra = fh['ra']
     sdss_dec = fh['dec']
     return sdss_z,sdss_ra,sdss_dec
+
+def return_gals(radius=10, thresh=100):
+    print("Finding all galaxies around clusters...")
+    # prelinimary stuff
+    # get all unique cluster names, RA/Dec values, and redshifts
+    gr15_unique_clusters = [i for i in set(clusters)]
+    gr15_unique_ra = [ra_to_deg(ra[clusters.index(i)]) for i in gr15_unique_clusters]
+    gr15_unique_dec = [dec_to_deg(dec[clusters.index(i)]) for i in gr15_unique_clusters]
+    gr15_unique_z = [redshift[clusters.index(i)] for i in gr15_unique_clusters]
+    sdss_dist = [ComovingDistance(sdss_z[i],inunitsof='hinvMpc') for i in range(len(sdss_z))] # getting comoving distances for all sdss gals
+    
+    # find clusters within SDSS bounds first
+    # bounds: RA 100 -> 270
+    #         Dec. -10 -> 70
+    #         Any redshift
+    print("  --> Finding clusters within SDSS footprint...")
+    dec_min,dec_max = (-10,70)
+    ra_min,ra_max = (100,270)
+    assert len(gr15_unique_clusters) == len(gr15_unique_ra), "Clusters and RA vals lists are not the same length..."
+    assert len(gr15_unique_clusters) == len(gr15_unique_dec), "Clusters and Dec. vals lists are not the same length..."
+    cl_trim = [gr15_unique_clusters[i] for i in range(len(gr15_unique_clusters))
+               if gr15_unique_ra[i] >= ra_min
+               and gr15_unique_ra[i] <= ra_max
+               and gr15_unique_dec[i] >= dec_min
+               and gr15_unique_dec[i] <= dec_max]
+    ra_trim = [gr15_unique_ra[i] for i in range(len(gr15_unique_clusters))
+               if gr15_unique_ra[i] >= ra_min
+               and gr15_unique_ra[i] <= ra_max
+               and gr15_unique_dec[i] >= dec_min
+               and gr15_unique_dec[i] <= dec_max]
+    dec_trim = [gr15_unique_dec[i] for i in range(len(gr15_unique_clusters))
+               if gr15_unique_ra[i] >= ra_min
+               and gr15_unique_ra[i] <= ra_max
+               and gr15_unique_dec[i] >= dec_min
+               and gr15_unique_dec[i] <= dec_max]
+    z_trim = [gr15_unique_z[i] for i in range(len(gr15_unique_clusters))
+               if gr15_unique_ra[i] >= ra_min
+               and gr15_unique_ra[i] <= ra_max
+               and gr15_unique_dec[i] >= dec_min
+               and gr15_unique_dec[i] <= dec_max]
+    chi_trim = [ComovingDistance(z_trim[i],inunitsof='hinvMpc') for i in range(len(z_trim))]
+    master_cls = [(cl_trim[i],ra_trim[i],dec_trim[i],z_trim[i],chi_trim[i]) for i in range(len(chi_trim))]
+    
+    # need to convert degrees to rads
+    ra_trim_rads = [ra_trim[i]*(2*np.pi/360.) for i in range(len(ra_trim))]
+    dec_trim_rads = [dec_trim[i]*(2*np.pi/360.) for i in range(len(dec_trim))]
+    sdss_ra_rads = [sdss_ra[i]*(2*np.pi/360.) for i in range(len(sdss_ra))]
+    sdss_dec_rads = [sdss_dec[i]*(2*np.pi/360.) for i in range(len(sdss_dec))]
+    
+    # now associate sdss galaxies within sphere of radius R to each cluster.
+    r2vals = [] # stores the values of the r^2 values for later.
+    rvecs = [] # stores x1,x2,x3 values for gals inside bounds
+    master_gals = []
+    for i in range(len(cl_trim)): # loop through each cluster and find all galaxies
+        print("   --> On cluster: {} ({} of {})".format(cl_trim[i],i+1,len(cl_trim)))
+        # calculate all r2 vals for all sdss galaxies for each cluster (one at a time)
+        x1 = [chi_trim[i]-sdss_dist[j] for j in range(len(sdss_dist))]
+        D_A = ComovingDistance(z_trim[i],inunitsof='hinvMpc')/(1+z_trim[i])
+        x2 = [(dec_trim_rads[i]-sdss_dec_rads[j])*D_A for j in range(len(sdss_dec_rads))]
+        x3 = [(ra_trim_rads[i]-sdss_ra_rads[j])*D_A*np.cos(dec_trim_rads[i]) for j in range(len(sdss_ra_rads))]
+        assert len(x1) == len(x2), "Calculations of x1 and x2 are producing lists of different sizes..."
+        assert len(x1) == len(x3), "Calculations of x1 and x3 are producing lists of different sizes..."
+        tmp_r2vals = [x1[i]**2+x2[i]**2+x3[i]**2 for i in range(len(x1))]
+        # store sdss gal data for ones inside here
+        bools = np.array(tmp_r2vals) <= radius**2 # use bools to select out gal data
+        r2vals.append(np.array(tmp_r2vals)[bools]) # storing r2vals for later calculations
+        rvecs.append([np.array(x1)[bools],np.array(x2)[bools],np.array(x3)[bools]])
+        tmp_ra_in = np.array(sdss_ra_rads)[bools]
+        tmp_dec_in = np.array(sdss_dec_rads)[bools]
+        tmp_z_in = np.array(sdss_z)[bools]
+        tmp_dist_in = np.array(sdss_dist)[bools]
+        master_gals.append([tmp_ra_in,tmp_dec_in,tmp_z_in,tmp_dist_in])
+        
+
+    # choose only those which have ngals >= threshold
+    ipdb.set_trace()
+    lengths = [len(rvecs[i][0]) for i in range(len(rvecs))]
+    bools2 = np.array(lengths) >= thresh
+    master_cls_thr = np.array(master_cls)[bools2]
+    master_gals_Thr = np.array(master_gals)[bools2]
+    r2vals_thr = np.array(r2vals)[bools2]
+    rvecs_thr = np.array(rvecs)[bools2]
+
+    # compute $<r^2>/R^2 - 0.6$ here
+    '''
+    ave_r2s = [(np.average(r2vals_thr[i])/(radius**2))-0.6 for i in range(len(r2vals_thr))]
+    plt.hist(ave_r2s,color='black',histtype='stepfilled')
+    plt.xlabel(r"$\mathrm{\frac{\langle r^{2} \rangle}{R^{2}} - 0.6}$",fontsize=18)
+    plt.show()
+    '''
+    
+    # compute angles from rvecs here
+    # the z-direction (line-of-sight direction) is x1
+    # the y-direction is x2
+    # the x-direction is x3
+    # theta = arctan(y/x)
+    # phi = arccos(z/r); r = sqrt(x^2 + y^2)
+    theta = [np.arctan(rvecs_thr[i][1]/rvecs_thr[i][2]) for i in range(len(rvecs_thr))]
+    phi = [np.arccos(rvecs_thr[i][0]/(np.sqrt(rvecs_thr[i][0]**2 + rvecs_thr[i][1]**2 + rvecs_thr[i][2]**2))) for i in range(len(rvecs_thr))]
+    master_angles = [theta,phi]
+
+    # compute spherical harmonic coefficients here
+    
+    
+    return master_cls_thr,master_gals_thr,r2vals_thr,rvecs_thr,master_angles
+        
+        
+    
+    
 
 def plot_dec_slice(dec_min, dec_max, withclusters=False, withbounds=False, justgalsinside=False, skipplot=False, specificcluster=None):
 
@@ -760,8 +871,10 @@ sdss_z,sdss_ra,sdss_dec = startup_sdss()
 
 if __name__ == "__main__":
 
+    return_gals()
+    
     # All methods
-    out_mvir,out_mvir_p,out_y,out_y_p,out_legvals_thresh = correlate_all_slices(plot_summary_slice=False,stat='Legendre')
-    do_plotting(out_mvir=out_mvir, out_mvir_p=out_mvir_p,
-                out_y=out_y, out_y_p=out_y_p,
-                out_legvals_thresh=out_legvals_thresh, stat='Legendre')
+    #out_mvir,out_mvir_p,out_y,out_y_p,out_legvals_thresh = correlate_all_slices(plot_summary_slice=False,stat='Legendre')
+    #do_plotting(out_mvir=out_mvir, out_mvir_p=out_mvir_p,
+    #            out_y=out_y, out_y_p=out_y_p,
+    #            out_legvals_thresh=out_legvals_thresh, stat='Legendre')
