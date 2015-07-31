@@ -10,6 +10,7 @@ from scipy.stats import pearsonr
 import socket
 import time
 from numpy.polynomial.legendre import legfit,legval
+from scipy.special import sph_harm
 
 # Special slice plotting
 from demo_floating_axes import setup_axes3
@@ -261,9 +262,70 @@ def return_gals(radius=10, thresh=100):
     phi = [np.arccos(rvecs_thr[i][0]/(np.sqrt(rvecs_thr[i][0]**2 + rvecs_thr[i][1]**2 + rvecs_thr[i][2]**2))) for i in range(len(rvecs_thr))]
     master_angles = [theta,phi]
 
+    ipdb.set_trace()
     # compute spherical harmonic coefficients here
+    y10 = [sph_harm(0,1,theta[i],phi[i]) for i in range(len(theta))]
+    y10_cc = [np.conjugate(y10[i]) for i in range(len(y10))]
+    a10 = [sum(y10_cc[i])/len(y10_cc[i]) for i in range(len(y10_cc))]
     
+    y1p1 = [sph_harm(1,1,theta[i],phi[i]) for i in range(len(theta))]
+    y1p1_cc = [np.conjugate(y1p1[i]) for i in range(len(y1p1))]
+    a1p1 = [sum(y1p1_cc[i])/len(y1p1_cc[i]) for i in range(len(y1p1_cc))]
     
+    y1m1 = [sph_harm(-1,1,theta[i],phi[i]) for i in range(len(theta))]
+    y1m1_cc = [np.conjugate(y1m1[i]) for i in range(len(y1m1))]
+    a1m1 = [sum(y1m1_cc[i])/len(y1m1_cc[i]) for i in range(len(y1m1_cc))]
+
+    stat = [(abs(a10[i])**2)/(abs(a1p1[i])**2+abs(a1m1[i])**2) for i in range(len(a10))]
+
+    # find values of conc/mass for clusters in master_cls_thr
+    cl_list = [master_cls_thr[i][0] for i in range(len(master_cls_thr))]
+    pro_cl_list = pro_cl.data.tolist()
+    #Get all measurements
+    indices = [[i for i in range(len(pro_cl_list)) if cl_list[j] == pro_cl_list[i]] for j in range(len(cl_list))]
+    p_mvir_list = pro_mvir.data.tolist()
+    p_mvir = [[p_mvir_list[i] for i in indices[j]] for j in range(len(indices))]
+    p_mvir_p_list = pro_mvir_p.data.tolist()
+    p_mvir_p = [[p_mvir_p_list[i] for i in indices[j]] for j in range(len(indices))]
+    p_cvir_list = pro_cvir.data.tolist()
+    p_cvir = [[p_cvir_list[i] for i in indices[j]] for j in range(len(indices))]
+    p_cvir_p_list = pro_cvir_p.data.tolist()
+    p_cvir_p = [[p_cvir_p_list[i] for i in indices[j]] for j in range(len(indices))]
+    p_z_list = pro_z.data.tolist()
+    p_z = [[p_z_list[i] for i in indices[j]] for j in range(len(indices))]
+    ipdb.set_trace()
+    #Coadd measurements
+    coadd_p_mvir = []
+    coadd_p_mvir_p = []
+    coadd_p_y = []
+    coadd_p_y_p = []
+    for i in range(len(indices)):
+        if len(indices[i]) > 1:
+            #print("More than one cluster here: {}".format(i))
+            # Coadding masses
+            mweights = [(1.0/p_mvir_p[i][j]**2) for j in range(len(p_mvir_p[i]))]
+            mnew = sum([p_mvir[i][j]*mweights[j] for j in range(len(p_mvir[i]))])/sum(mweights)
+            mnew_p = 1.0/np.sqrt(sum(mweights))
+            coadd_p_mvir.append(mnew)
+            coadd_p_mvir_p.append(mnew_p)
+            # Coadding concs*(1+z)
+            y = [p_cvir[i][j]*(1+p_z[i][0]) for j in range(len(p_cvir[i]))]
+            yerr = [p_cvir_p[i][j]*(1+p_z[i][0]) for j in range(len(p_cvir_p[i]))]
+            yweights = [1.0/yerr[j]**2 for j in range(len(yerr))]
+            ynew = sum([y[j]*yweights[j] for j in range(len(yweights))])/sum(yweights)
+            ynew_p = 1.0/np.sqrt(sum(yweights))
+            coadd_p_y.append(ynew)
+            coadd_p_y_p.append(ynew_p)
+        else:
+            #print("Only one cluster here: {}".format(i))
+            coadd_p_mvir.append(p_mvir[i][0])
+            coadd_p_mvir_p.append(p_mvir_p[i][0])
+            y = [p_cvir[i][j]*(1+p_z[i][0]) for j in range(len(p_cvir[i]))]
+            yerr = [p_cvir_p[i][j]*(1+p_z[i][0]) for j in range(len(p_cvir_p[i]))]
+            coadd_p_y.append(y[0])
+            coadd_p_y_p.append(yerr[0])
+    
+    ipdb.set_trace()
     return master_cls_thr,master_gals_thr,r2vals_thr,rvecs_thr,master_angles
         
         
