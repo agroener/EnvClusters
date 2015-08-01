@@ -236,7 +236,6 @@ def return_gals(radius=10, thresh=100):
         
 
     # choose only those which have ngals >= threshold
-    ipdb.set_trace()
     lengths = [len(rvecs[i][0]) for i in range(len(rvecs))]
     bools2 = np.array(lengths) >= thresh
     master_cls_thr = np.array(master_cls)[bools2]
@@ -262,7 +261,6 @@ def return_gals(radius=10, thresh=100):
     phi = [np.arccos(rvecs_thr[i][0]/(np.sqrt(rvecs_thr[i][0]**2 + rvecs_thr[i][1]**2 + rvecs_thr[i][2]**2))) for i in range(len(rvecs_thr))]
     master_angles = [theta,phi]
 
-    ipdb.set_trace()
     # compute spherical harmonic coefficients here
     y10 = [sph_harm(0,1,theta[i],phi[i]) for i in range(len(theta))]
     y10_cc = [np.conjugate(y10[i]) for i in range(len(y10))]
@@ -276,7 +274,7 @@ def return_gals(radius=10, thresh=100):
     y1m1_cc = [np.conjugate(y1m1[i]) for i in range(len(y1m1))]
     a1m1 = [sum(y1m1_cc[i])/len(y1m1_cc[i]) for i in range(len(y1m1_cc))]
 
-    stat = [(abs(a10[i])**2)/(abs(a1p1[i])**2+abs(a1m1[i])**2) for i in range(len(a10))]
+    stat = [a10[i].real/np.sqrt((abs(a1p1[i])**2+abs(a1m1[i])**2)) for i in range(len(a10))]
 
     # find values of conc/mass for clusters in master_cls_thr
     cl_list = [master_cls_thr[i][0] for i in range(len(master_cls_thr))]
@@ -293,10 +291,18 @@ def return_gals(radius=10, thresh=100):
     p_cvir_p = [[p_cvir_p_list[i] for i in indices[j]] for j in range(len(indices))]
     p_z_list = pro_z.data.tolist()
     p_z = [[p_z_list[i] for i in indices[j]] for j in range(len(indices))]
-    ipdb.set_trace()
+    p_methods_list = pro_methods.tolist()
+    p_methods = [[p_methods_list[i] for i in indices[j]] for j in range(len(indices))]
+    indices_lensing = [i for i in range(len(p_methods)) if 'WL' in p_methods[i] or 'SL' in p_methods[i] or 'WL+SL' in p_methods[i]]
+    p_cls_lensing = [master_cls_thr[i][0] for i in indices_lensing]
+
+    stat_lensing = [stat[i] for i in indices_lensing]
+    
     #Coadd measurements
     coadd_p_mvir = []
     coadd_p_mvir_p = []
+    coadd_p_cvir = []
+    coadd_p_cvir_p = []
     coadd_p_y = []
     coadd_p_y_p = []
     for i in range(len(indices)):
@@ -308,6 +314,12 @@ def return_gals(radius=10, thresh=100):
             mnew_p = 1.0/np.sqrt(sum(mweights))
             coadd_p_mvir.append(mnew)
             coadd_p_mvir_p.append(mnew_p)
+            # Coadding concs
+            cweights = [(1.0/p_cvir_p[i][j]**2) for j in range(len(p_cvir_p[i]))]
+            cnew = sum([p_cvir[i][j]*cweights[j] for j in range(len(p_cvir[i]))])/sum(cweights)
+            cnew_p = 1.0/np.sqrt(sum(cweights))
+            coadd_p_cvir.append(cnew)
+            coadd_p_cvir_p.append(cnew_p)
             # Coadding concs*(1+z)
             y = [p_cvir[i][j]*(1+p_z[i][0]) for j in range(len(p_cvir[i]))]
             yerr = [p_cvir_p[i][j]*(1+p_z[i][0]) for j in range(len(p_cvir_p[i]))]
@@ -320,10 +332,59 @@ def return_gals(radius=10, thresh=100):
             #print("Only one cluster here: {}".format(i))
             coadd_p_mvir.append(p_mvir[i][0])
             coadd_p_mvir_p.append(p_mvir_p[i][0])
+            coadd_p_cvir.append(p_cvir[i][0])
+            coadd_p_cvir_p.append(p_cvir_p[i][0])
             y = [p_cvir[i][j]*(1+p_z[i][0]) for j in range(len(p_cvir[i]))]
             yerr = [p_cvir_p[i][j]*(1+p_z[i][0]) for j in range(len(p_cvir_p[i]))]
             coadd_p_y.append(y[0])
             coadd_p_y_p.append(yerr[0])
+
+    coadd_m_lensing = [coadd_p_mvir[i] for i in indices_lensing]
+    coadd_m_p_lensing = [coadd_p_mvir_p[i] for i in indices_lensing]
+    coadd_c_lensing = [coadd_p_cvir[i] for i in indices_lensing]
+    coadd_c_p_lensing = [coadd_p_cvir_p[i] for i in indices_lensing]
+    coadd_y_lensing = [coadd_p_y[i] for i in indices_lensing]
+    coadd_y_p_lensing = [coadd_p_y_p[i] for i in indices_lensing]
+    
+    ipdb.set_trace()
+    # plotting results (w/ correlations)
+    # mass vs. stat
+    f,ax = plt.subplots()
+    ax.set_title("Pearson's r: {}\np-value: {}".format(round(pearsonr(stat,coadd_p_mvir)[0],2),round(pearsonr(stat,coadd_p_mvir)[1],2)))
+    ax.set_yscale("log")
+    ax.errorbar(stat,np.array(coadd_p_mvir)*1.e14,yerr=np.array(coadd_p_mvir_p)*1.e14,fmt='o',color='black')
+    ax.errorbar(stat_lensing,np.array(coadd_m_lensing)*1.e14,yerr=np.array(coadd_m_p_lensing)*1.e14,fmt='o',color='red',zorder=20)
+    plt.ylabel(r"$\mathrm{M_{vir}\,(M_{\odot})}$",fontsize=18)
+    plt.ylim(1.e13,1.e16)
+    plt.xlim(-0.1,1.2)
+    plt.xlabel(r"$\mathrm{\frac{a_{1,0}}{\sqrt{{a_{1,1}}^{2}+{a_{1,-1}}^{2}}}}$",fontsize=18)
+    plt.tight_layout()
+    plt.show()
+    # conc vs. stat
+    f,ax = plt.subplots()
+    ax.set_title("Pearson's r: {}\np-value: {}".format(round(pearsonr(stat,coadd_p_cvir)[0],2),round(pearsonr(stat,coadd_p_cvir)[1],2)))
+    ax.set_yscale("log")
+    ax.errorbar(stat,coadd_p_cvir,yerr=coadd_p_cvir_p,fmt='o',color='black')
+    ax.errorbar(stat_lensing,coadd_c_lensing,yerr=coadd_c_p_lensing,fmt='o',color='red',zorder=20)
+    plt.ylabel(r"$\mathrm{c_{vir}}$",fontsize=18)
+    #plt.ylim(1.e13,1.e16)
+    plt.xlim(-0.1,1.2)
+    plt.xlabel(r"$\mathrm{\frac{a_{1,0}}{\sqrt{{a_{1,1}}^{2}+{a_{1,-1}}^{2}}}}$",fontsize=18)
+    plt.tight_layout()
+    plt.show()
+    # conc*(1+z) vs. stat
+    f,ax = plt.subplots()
+    ax.set_title("Pearson's r: {}\np-value: {}".format(round(pearsonr(stat,coadd_p_y)[0],2),round(pearsonr(stat,coadd_p_y)[1],2)))
+    ax.set_yscale("log")
+    ax.errorbar(stat,coadd_p_y,yerr=coadd_p_y_p,fmt='o',color='black')
+    ax.errorbar(stat_lensing,coadd_y_lensing,yerr=coadd_y_p_lensing,fmt='o',color='red',zorder=20)
+    plt.ylabel(r"$\mathrm{c_{vir}(1+z)}$",fontsize=18)
+    #plt.ylim(1.e13,1.e16)
+    plt.xlim(-0.1,1.2)
+    plt.xlabel(r"$\mathrm{\frac{a_{1,0}}{\sqrt{{a_{1,1}}^{2}+{a_{1,-1}}^{2}}}}$",fontsize=18)
+    plt.tight_layout()
+    plt.show()
+    
     
     ipdb.set_trace()
     return master_cls_thr,master_gals_thr,r2vals_thr,rvecs_thr,master_angles
