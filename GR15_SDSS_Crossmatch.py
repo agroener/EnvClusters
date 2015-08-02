@@ -2,6 +2,7 @@ from xlrd import open_workbook
 import numpy as np
 import math
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.path as mplPath
 from matplotlib import colors
 from astropy.io.ascii import read
@@ -217,10 +218,10 @@ def return_gals(radius=10, thresh=100):
     for i in range(len(cl_trim)): # loop through each cluster and find all galaxies
         print("   --> On cluster: {} ({} of {})".format(cl_trim[i],i+1,len(cl_trim)))
         # calculate all r2 vals for all sdss galaxies for each cluster (one at a time)
-        x1 = [chi_trim[i]-sdss_dist[j] for j in range(len(sdss_dist))]
+        x1 = [sdss_dist[j]-chi_trim[i] for j in range(len(sdss_dist))]
         D_A = ComovingDistance(z_trim[i],inunitsof='hinvMpc')/(1+z_trim[i])
-        x2 = [(dec_trim_rads[i]-sdss_dec_rads[j])*D_A for j in range(len(sdss_dec_rads))]
-        x3 = [(ra_trim_rads[i]-sdss_ra_rads[j])*D_A*np.cos(dec_trim_rads[i]) for j in range(len(sdss_ra_rads))]
+        x2 = [(sdss_dec_rads[j]-dec_trim_rads[i])*D_A for j in range(len(sdss_dec_rads))]
+        x3 = [(sdss_ra_rads[j]-ra_trim_rads[i])*D_A*np.cos(dec_trim_rads[i]) for j in range(len(sdss_ra_rads))]
         assert len(x1) == len(x2), "Calculations of x1 and x2 are producing lists of different sizes..."
         assert len(x1) == len(x3), "Calculations of x1 and x3 are producing lists of different sizes..."
         tmp_r2vals = [x1[i]**2+x2[i]**2+x3[i]**2 for i in range(len(x1))]
@@ -239,7 +240,7 @@ def return_gals(radius=10, thresh=100):
     lengths = [len(rvecs[i][0]) for i in range(len(rvecs))]
     bools2 = np.array(lengths) >= thresh
     master_cls_thr = np.array(master_cls)[bools2]
-    master_gals_Thr = np.array(master_gals)[bools2]
+    master_gals_thr = np.array(master_gals)[bools2]
     r2vals_thr = np.array(r2vals)[bools2]
     rvecs_thr = np.array(rvecs)[bools2]
 
@@ -347,6 +348,20 @@ def return_gals(radius=10, thresh=100):
     coadd_y_p_lensing = [coadd_p_y_p[i] for i in indices_lensing]
     
     ipdb.set_trace()
+    
+    # plotting example galaxy cluster environment
+    '''
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    ax.scatter(rvecs_thr[0][0],rvecs_thr[0][1],rvecs_thr[0][2],s=5,zorder=1)
+    ax.scatter(0,0,0,s=50,color='red',zorder=2)
+    ax.set_title("{}".format(master_cls_thr[0][0]),fontsize=18)
+    ax.set_xlabel(r"$\mathrm{h^{-1}\, Mpc}$",fontsize=18)
+    ax.set_ylabel(r"$\mathrm{h^{-1}\, Mpc}$",fontsize=18)
+    ax.set_zlabel(r"$\mathrm{h^{-1}\, Mpc}$",fontsize=18)
+    plt.show()
+    '''
+    
     # plotting results (w/ correlations)
     # mass vs. stat
     f,ax = plt.subplots()
