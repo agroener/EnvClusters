@@ -12,6 +12,7 @@ import socket
 import time
 from numpy.polynomial.legendre import legfit,legval
 from scipy.special import sph_harm
+from astroML.correlation import two_point
 
 # Special slice plotting
 from demo_floating_axes import setup_axes3
@@ -306,6 +307,7 @@ def return_gals(radius=10, thresh=100):
     coadd_p_cvir_p = []
     coadd_p_y = []
     coadd_p_y_p = []
+    ipdb.set_trace()
     for i in range(len(indices)):
         if len(indices[i]) > 1:
             #print("More than one cluster here: {}".format(i))
@@ -329,7 +331,7 @@ def return_gals(radius=10, thresh=100):
             ynew_p = 1.0/np.sqrt(sum(yweights))
             coadd_p_y.append(ynew)
             coadd_p_y_p.append(ynew_p)
-        else:
+        elif len(indices[i]) == 1:
             #print("Only one cluster here: {}".format(i))
             coadd_p_mvir.append(p_mvir[i][0])
             coadd_p_mvir_p.append(p_mvir_p[i][0])
@@ -339,16 +341,47 @@ def return_gals(radius=10, thresh=100):
             yerr = [p_cvir_p[i][j]*(1+p_z[i][0]) for j in range(len(p_cvir_p[i]))]
             coadd_p_y.append(y[0])
             coadd_p_y_p.append(yerr[0])
-
-    coadd_m_lensing = [coadd_p_mvir[i] for i in indices_lensing]
-    coadd_m_p_lensing = [coadd_p_mvir_p[i] for i in indices_lensing]
-    coadd_c_lensing = [coadd_p_cvir[i] for i in indices_lensing]
-    coadd_c_p_lensing = [coadd_p_cvir_p[i] for i in indices_lensing]
-    coadd_y_lensing = [coadd_p_y[i] for i in indices_lensing]
-    coadd_y_p_lensing = [coadd_p_y_p[i] for i in indices_lensing]
-    
+        else:
+            # case where there is no concentration/mass value in the GR15.1.
+            print("Found {} measurements for cluster: {}".format(len(indices[i]),i))
+            coadd_p_mvir.append(np.nan)
+            coadd_p_mvir_p.append(np.nan)
+            coadd_p_cvir.append(np.nan)
+            coadd_p_cvir_p.append(np.nan)
+            coadd_p_y.append(np.nan)
+            coadd_p_y_p.append(np.nan)
     ipdb.set_trace()
+    # Getting rid of the clusters with no conc or mass value.
+    coadd_p_mvir = [coadd_p_mvir[i] for i in range(len(coadd_p_mvir)) if np.isnan(coadd_p_mvir[i]) is False]
+    coadd_p_mvir_p = [coadd_p_mvir_p[i] for i in range(len(coadd_p_mvir)) if np.isnan(coadd_p_mvir[i]) is False]
+    coadd_p_cvir = [coadd_p_cvir[i] for i in range(len(coadd_p_mvir)) if np.isnan(coadd_p_mvir[i]) is False]
+    coadd_p_cvir_p = [coadd_p_cvir_p[i] for i in range(len(coadd_p_mvir)) if np.isnan(coadd_p_mvir[i]) is False]
+    coadd_p_y = [coadd_p_y[i] for i in range(len(coadd_p_mvir)) if np.isnan(coadd_p_mvir[i]) is False]
+    coadd_p_y_p = [coadd_p_y_p[i] for i in range(len(coadd_p_mvir)) if np.isnan(coadd_p_mvir[i]) is False]
+    # Getting all lensing measurements (and not selecting clusters with no conc or mass value)
+    coadd_m_lensing = [coadd_p_mvir[i] for i in indices_lensing if np.isnan(coadd_p_mvir[i]) is False]
+    coadd_m_p_lensing = [coadd_p_mvir_p[i] for i in indices_lensing if np.isnan(coadd_p_mvir[i]) is False]
+    coadd_c_lensing = [coadd_p_cvir[i] for i in indices_lensing if np.isnan(coadd_p_mvir[i]) is False]
+    coadd_c_p_lensing = [coadd_p_cvir_p[i] for i in indices_lensing if np.isnan(coadd_p_mvir[i]) is False]
+    coadd_y_lensing = [coadd_p_y[i] for i in indices_lensing if np.isnan(coadd_p_mvir[i]) is False]
+    coadd_y_p_lensing = [coadd_p_y_p[i] for i in indices_lensing if np.isnan(coadd_p_mvir[i]) is False]
     
+    # plotting average two_point correlation function
+    #'''
+    tmp_rvecs_thr = [np.vstack([rvecs_thr[i][0],rvecs_thr[i][1],rvecs_thr[i][2]]).T for i in range(len(rvecs_thr))]
+    bins = np.linspace(0,radius,15)
+    corr = [two_point(tmp_rvecs_thr[i],bins) for i in range(len(tmp_rvecs_thr))]
+    ave_corr = np.zeros((len(bins)-1))
+    for i in range(len(corr)):
+        ave_corr += corr[i]
+    ave_corr = ave_corr/len(corr)
+    plt.plot(bins[:-1],ave_corr,color='black')
+    plt.xlabel(r"r ($\mathrm{h^{-1}\,Mpc}$)",fontsize=20)
+    plt.ylabel(r"$\mathrm{\langle \xi (r) \rangle}$",fontsize=20)
+    plt.tight_layout()
+    plt.show()
+    ipdb.set_trace()
+    #'''
     # plotting example galaxy cluster environment
     '''
     fig = plt.figure()
@@ -999,6 +1032,7 @@ clusters,redshift,methods,c200,c200_plus,c200_minus,m200,m200_plus,m200_minus,cv
 # Get normalized concs/masses
 print("Loading normalized cluster data (post-processed)...")
 pro_mvir,pro_mvir_p,pro_mvir_m,pro_cvir,pro_cvir_p,pro_cvir_m,pro_methods,pro_z,pro_cl,pro_refs = startup_processed()
+#ipdb.set_trace()
 
 # Get sdss galaxy data
 print("Loading SDSS galaxy data...\n")
@@ -1009,7 +1043,8 @@ sdss_z,sdss_ra,sdss_dec = startup_sdss()
 
 if __name__ == "__main__":
 
-    return_gals()
+    #return_gals() # radius of 10
+    return_gals(radius=30) # radius of 30
     
     # All methods
     #out_mvir,out_mvir_p,out_y,out_y_p,out_legvals_thresh = correlate_all_slices(plot_summary_slice=False,stat='Legendre')
