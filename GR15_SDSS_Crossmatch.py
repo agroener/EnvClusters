@@ -1007,17 +1007,28 @@ def do_plotting(out_mvir,out_mvir_p,out_y,out_y_p,stat='Peak',
 
 
 def plot_all_sdss():
+    # get clusters within area
+    tmp_dec = [dec_to_deg(dec[i]) for i in range(len(dec))]
+    tmp_ra = [ra_to_deg(ra[i]) for i in range(len(ra))]
+    tmp_index = [i for i in range(len(tmp_ra))
+                 if tmp_ra[i] > 100
+                 and tmp_ra[i] < 270
+                 and tmp_dec[i] > -10
+                 and tmp_dec[i] < 70]
+    cl_ra = [tmp_ra[i] for i in tmp_index]
+    cl_dec = [tmp_dec[i] for i in tmp_index]
     fig = plt.gca()
     plt.scatter(sdss_ra,sdss_dec,marker='.',s=1,color='magenta', zorder=1)
+    plt.scatter(cl_ra,cl_dec,marker='*',s=10,color='black', zorder=2)
     plt.ylim(-20,80)
     plt.xlim(50,300)
     plt.xlabel(r"RA (deg.)",fontsize=18)
     plt.ylabel(r"Dec. (deg.)",fontsize=18)
-    plt.grid(b=True, which='major', color='black', linestyle='-', zorder=2)
-    plt.grid(b=True, which='minor', color='black', linestyle='-', zorder=2)
-    circle = plt.Circle(xy=(75,0),radius=0.5,color='black', alpha=0.5,hatch='/')
+    plt.grid(b=True, which='major', color='black', linestyle='-', zorder=3)
+    plt.grid(b=True, which='minor', color='black', linestyle='-', zorder=3)
+    circle = plt.Circle(xy=(75,10),radius=0.5,color='black', alpha=0.5,hatch='/')
     fig.add_artist(circle)
-    plt.text(60,-15,"Size of the\nfull moon")
+    plt.text(60,-5,"Size of the\nfull moon")
     plt.axes().set_aspect('equal')#, 'datalim')
     plt.show()
     return
@@ -1043,8 +1054,11 @@ sdss_z,sdss_ra,sdss_dec = startup_sdss()
 
 if __name__ == "__main__":
 
+    # plotting all SDSS galaxies
+    plot_all_sdss()
+    
     #return_gals() # radius of 10
-    return_gals(radius=30) # radius of 30
+    #return_gals(radius=30) # radius of 30
     
     # All methods
     #out_mvir,out_mvir_p,out_y,out_y_p,out_legvals_thresh = correlate_all_slices(plot_summary_slice=False,stat='Legendre')
