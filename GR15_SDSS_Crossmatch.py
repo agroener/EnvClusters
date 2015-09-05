@@ -1055,7 +1055,7 @@ sdss_z,sdss_ra,sdss_dec = startup_sdss()
 if __name__ == "__main__":
 
     # plotting all SDSS galaxies
-    plot_all_sdss()
+    #plot_all_sdss()
     
     #return_gals() # radius of 10
     #return_gals(radius=30) # radius of 30
@@ -1065,3 +1065,7 @@ if __name__ == "__main__":
     #do_plotting(out_mvir=out_mvir, out_mvir_p=out_mvir_p,
     #            out_y=out_y, out_y_p=out_y_p,
     #            out_legvals_thresh=out_legvals_thresh, stat='Legendre')
+
+
+    # Plotting 1 slice
+    plot_dec_slice(0, 2, withclusters=True, withbounds=True, justgalsinside=False, skipplot=False, specificcluster=None)
